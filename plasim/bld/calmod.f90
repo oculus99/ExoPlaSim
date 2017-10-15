@@ -19,6 +19,9 @@
       integer :: n_days_per_year  = 360
       integer :: n_start_step     =   0
       integer :: ntspd            =   0
+      integer :: ntspm            =   0
+      integer :: ntspy            =   0
+      integer :: mpstep           =   0
       real    :: solar_day        = 86400.0 ! [sec]
 
       end module calmod
@@ -29,14 +32,17 @@
 !     =================
 
       subroutine calini(k_days_per_month,k_days_per_year,k_start_step &
-                       ,ktspd,psolday,kpid)
+                       ,ktspd,psolday,kpid,ktspm,ktspy,kmpstep)
       use calmod
 
       n_days_per_month = k_days_per_month
       n_days_per_year  = k_days_per_year
       n_start_step     = k_start_step
       ntspd            = ktspd
+      ntspm            = ktspm
+      ntspy            = ktspy
       solar_day        = psolday
+      mpstep           = kmpstep
 
       if (kpid == 0) then
          write(nud,1050)
@@ -288,11 +294,22 @@
 
       idall = kstep / ktspd
       iyea  = idall / n_days_per_year
+!       iyea = kstep / ntspy
       idall = mod(idall,n_days_per_year)
+!       idall = mod(kstep,ntspy)
       imon  = idall / n_days_per_month + 1
+!       imon = idall/(ntspm+1) + 1
+!$$$
+!       open(unit=37,file="monthstep",status='unknown',position='append')
+!       write(37,*)imon,idall,ntspm,kstep
+!       close(37)
+!$$$       
       iday  = mod(idall,n_days_per_month) + 1
+!       iday = mod(idall,ntspm+1) + 1
       istp  = mod(kstep,ktspd)
       imin  = (istp * solar_day) / (ktspd * 60)
+!       idall = mod(idall,ntspd)
+!       imin = (idall*mpstep)
       ihou  = imin / 60
       imin  = mod(imin,60)
 
@@ -304,6 +321,8 @@
       kdatim(6) = 0 ! day of week
       kdatim(7) = 0 ! leap year
 
+    
+      
       return
       end subroutine step2cal30
 
@@ -408,17 +427,23 @@
 
 !     set fractional day
 
-      zday = iday + ((ihour * 60.0 + imin) * 60.0) / solar_day
 
+!       zday = iday + ((ihour * 60.0 + imin) * 60.0) / solar_day
+      zday = mod(kstep,ntspm)   
+      
 !     compute median of month a
 
       zdpma = n_days_per_month
+!       zdpma = ntspm
+  
+  
       if (n_days_per_year == 365) then
          zdpma = mondays(kmona)
          if (kmona == 2) zdpma = zdpma + idatim(7) ! leap year
       endif
       zmeda = 0.5 * (zdpma + 1.0) ! median day a
-
+        
+      
 !     define neighbour month
 
       if (zday > zmeda) then
@@ -430,6 +455,9 @@
 !     compute median of month b
 
       zdpmb = n_days_per_month
+!       zdpmb = ntspm
+       
+      
       if (n_days_per_year == 365) then
          jmonb = mod(kmonb+11,12) + 1 ! convert month (0-13) -> (1-12)
          zdpmb = mondays(jmonb)

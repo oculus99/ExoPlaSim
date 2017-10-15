@@ -96,9 +96,9 @@
          write(nud,carbonmod_nl)
       endif
       
-      frequency = min(frequency,real(ntspd))
-      interval = int(ntspd/frequency)
-      timeweight = (1.0 / (frequency*n_days_per_year))
+      frequency = min(frequency,real(ntsp24h)) !Can't check more often than once per timestep
+      interval = int(ntsp24h/frequency)
+      timeweight = (1.0 / (n_days_per_year*ntsp24h/interval))
       
       psurf0 = psurf
       
@@ -285,7 +285,13 @@
       ! weathering rate (factor of 3.33 increase, seems okay based on 1 AU tests) due to continental weathering. If 
       ! we were to add in seafloor weathering, then we'd add factors to account for changing land and sea area, but
       ! there would also be weights to determine the relative contributions of each, and those are parameterized (poorly).
-       if (mypid==NROOT) avgweathering = avgweathering / landfraction
+       if (mypid==NROOT) then
+         if (landfraction .gt. 0) then
+           avgweathering = avgweathering / landfraction
+         else
+           avgweathering = 0.
+         endif
+      endif
       
       if (mypid==NROOT) then
          globalweath(:) = globalweath(:)*VEARTH*1000.0

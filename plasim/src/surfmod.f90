@@ -376,6 +376,7 @@
          call mpsurfgp('doro',doro,NHOR,1)
          call mpsurfgp('dls' ,dls ,NHOR,1)
          if (npro == 1) then ! print only in single core runs
+            write(nud,'("Aqua mode: ",f10.2," continuing")') naqua
             write(nud,'(/,"Topography read from surface file")')
             write(nud,'("Maximum: ",f10.2," [m]")') maxval(doro) / ga
             write(nud,'("Minimum: ",f10.2," [m]")') minval(doro) / ga

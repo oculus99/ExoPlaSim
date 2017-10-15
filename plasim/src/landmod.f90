@@ -195,8 +195,10 @@
 
 !     scale taus from years to seconds
 
-      tau_veg  = tau_veg  * n_days_per_year * solar_day
-      tau_soil = tau_soil * n_days_per_year * solar_day
+!       tau_veg  = tau_veg  * n_days_per_year * solar_day
+!       tau_soil = tau_soil * n_days_per_year * solar_day
+      tau_veg  = tau_veg  * n_days_per_year * sidereal_day
+      tau_soil = tau_soil * n_days_per_year * sidereal_day
 
       if (tau_veg < 1.0 .or. tau_soil < 1.0) then
          write(nud,*)' *** error: tau_veg = ',tau_veg,'  tau_soil = ',tau_soil
@@ -219,6 +221,7 @@
 !
 !*       read surface parameters
 !
+         if (naqua == 0) then
          call mpsurfgp('doro'    ,doro    ,NHOR,1)
          call mpsurfgp('dls'     ,dls     ,NHOR,1)
          call mpsurfgp('dz0clim' ,dz0clim ,NHOR,1)
@@ -231,7 +234,8 @@
          call mpsurfgp('dtcl',dtcl,NHOR,14)
          call mpsurfgp('dwcl',dwcl,NHOR,14)
          call mpsurfgp('dalbcl',dalbcl,NHOR,14)
-
+         endif
+         
 !        make sure, that dwmax is positive
 
          where (dwmax(:) < 0.0) dwmax(:) = 0.0

@@ -5574,6 +5574,7 @@ void InitAll(void)
    All[319].Init("wthpr","weatherable_precipitation"       ,"mm day-1" ,1); // Not standard (AYP)
    All[320].Init("mint" ,"minimum_temperature"             ,"K"        ,1); // Not standard (AYP)
    All[321].Init("maxt" ,"maximum_temperature"             ,"K"        ,1); // Not standard (AYP)
+   All[318].Init("czen" ,"cosine_zenith_angle"             ,"cos_rad"  ,1); // Not standard (AYP)
 }
 
 void Usage(void)

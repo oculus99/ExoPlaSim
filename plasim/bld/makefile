@@ -2,6 +2,7 @@ MPI_RUN=mpiexec
 MOST_F90=mpif90
 MOST_F90_OPTS=-O3 -cpp -fcheck=all -ffixed-line-length-132 -finit-real=zero -ffpe-trap=invalid,zero,overflow
 MPIMOD=mpimod
+UTIMOD=utilities
 MOST_CC=mpicc
 MOST_CC_OPTS=-O3
 MOST_PP=mpicxx
@@ -12,6 +13,7 @@ LEGFAST=legfast32.o
 GUILIB=-L/usr/lib/X11 -lX11
 GUIMOD=guimod
 PUMAX=pumax
+MOST_PREC=-fdefault-real-8
 # Makefile template for MoSt
 # Compiler names and options are inserted by MoSt
 
@@ -25,6 +27,7 @@ PUMAX=pumax
 	$(MOST_F90) -c $(MOST_F90_OPTS) $<
 
 # MPIMOD=mpimod     # single (mpimod_stub) or parallel (mpimod)
+# UTIMOD=utilities  # single (utilities_stub) or parallel (utilities)
 # GUIMOD=guimod     # with GUI or without (guimod_stub)
 # PUMAX=pumax       # with GUI module or without (pumax_stub
 # GUILIB=${MOST_XLIB} -lX11
@@ -45,7 +48,7 @@ LANDMOD=landmod
 OCEAN=lsgmod
 OCEANCOUP=cpl
 
-OBJ=${MPIMOD}.o ${FFTMOD}.o ${GUIMOD}.o ${RAINMOD}.o ${VEGMOD}.o ${PLAMOD}.o carbonmod.o utilities.o resmod.o plasim.o plasimmod.o calmod.o gaussmod.o legmod.o outmod.o miscmod.o fluxmod.o radmod.o surfmod.o ${LANDMOD}.o glaciermod.o seamod.o icemod.o oceanmod.o restartmod.o tracermod.o tpcore.o trc_routines.o ${PUMAX}.o ${OCEAN}.o ${OCEANCOUP}.o
+OBJ=${MPIMOD}.o ${FFTMOD}.o ${GUIMOD}.o ${RAINMOD}.o ${VEGMOD}.o ${PLAMOD}.o carbonmod.o ${UTIMOD}.o resmod.o plasim.o plasimmod.o calmod.o gaussmod.o legmod.o outmod.o miscmod.o fluxmod.o radmod.o surfmod.o ${LANDMOD}.o glaciermod.o seamod.o icemod.o oceanmod.o restartmod.o tracermod.o tpcore.o trc_routines.o ${PUMAX}.o ${OCEAN}.o ${OCEANCOUP}.o
 
 plasim.x:	$(OBJ)
 	$(MOST_F90) -o plasim.x $(MOST_F90_OPTS) $(OBJ) ${GUILIB}
@@ -53,7 +56,7 @@ plasim.x:	$(OBJ)
 resmod.o:	resmod.f90
 plasimmod.o:	plasimmod.f90 resmod.o
 carbonmod.o:	carbonmod.f90 plasimmod.o
-utilities.o:	utilities.f90 plasimmod.o carbonmod.o
+${UTIMOD}.o:	${UTIMOD}.f90 plasimmod.o carbonmod.o
 plasim.o:	plasim.f90 plasimmod.o
 ${FFTMOD}.o:	${FFTMOD}.f90
 ${MPIMOD}.o:	${MPIMOD}.f90 plasimmod.o

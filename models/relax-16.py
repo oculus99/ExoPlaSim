@@ -65,7 +65,7 @@ if __name__=="__main__":
     os.system("[ -e plasim_status ] && mv plasim_status "+restname)
     os.system("[ -e restart_snow ] && mv restart_snow "+snowname)
     os.system("[ -e "+dataname+" ] && ./burn7.x -n <example.nl>burnout "+dataname+" "+dataname+".nc")
-    os.system("[ -e "+dataname+" ] && cp "+dataname+" "+EXP+"_OUT.%04d"%n)
+    os.system("[ -e "+dataname+" ] && cp "+dataname+" "+EXP+"_OUT.%04d"%year)
     os.system("[ -e "+dataname+".nc ] && rm "+dataname)
     relaxed=isflat("weathering.pso")
     

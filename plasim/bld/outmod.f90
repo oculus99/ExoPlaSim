@@ -9,8 +9,22 @@
 
       integer (kind=4) :: ihead(8)   ! header of first data set
       real    (kind=4) :: zsig(NUGP) ! first block contains settings
+      real dmonth
+      
+!       call ntomin(nstep,nmin,nhour,nday,nmonth,nyear)
 
-      call ntomin(nstep,nmin,nhour,nday,nmonth,nyear)
+! month is year/12.
+
+
+      nmin = int(mpstep*nstep)
+      nyear = int(nmin*60.0/sidereal_year)
+      nmin = nmin - nyear*int(sidereal_year/60.0)
+      dmonth = sidereal_year/60.0
+      dmonth = dmonth / 12.0
+      nmonth = int(nmin/dmonth)
+      nmin = nmin - int(nmonth*dmonth)
+      nday = int(nmin*60.0/sidereal_day)
+      nmin = nmin - nday*int(sidereal_day/60.0)
 
       ihead(1) = 333  ! ID for PUMA/PLASIM parameter block
       ihead(2) = 0
@@ -50,7 +64,19 @@
       real(kind=4) :: zzf(NUGP)
 
       istep = nstep
-      call ntomin(istep,nmin,nhour,nday,nmonth,nyear)
+!       call ntomin(istep,nmin,nhour,nday,nmonth,nyear)
+
+      nmin = int(mpstep*nstep)
+      nyear = int(nmin*60.0/sidereal_year)
+      nmin = nmin - nyear*int(sidereal_year/60.0)
+      dmonth = sidereal_year/60.0
+      dmonth = dmonth / 12.0
+      nmonth = int(nmin/dmonth)
+      nmin = nmin - int(nmonth*dmonth)
+      nday = int(nmin*60.0/sidereal_day)
+      nmin = nmin - nday*int(sidereal_day/60.0)
+      nhour = int(nmin/60.0)
+      nmin = nmin - 60*nhour
 
       ihead(1) = kcode
       ihead(2) = klev
@@ -86,6 +112,18 @@
 
       istep = nstep
       call ntomin(istep,nmin,nhour,nday,nmonth,nyear)
+
+!       nmin = int(mpstep*nstep)
+!       nyear = int(nmin*60.0/sidereal_year)
+!       nmin = nmin - nyear*int(sidereal_year/60.0)
+!       dmonth = sidereal_year/60.0
+!       dmonth = dmonth / 12.0
+!       nmonth = int(nmin/dmonth)
+!       nmin = nmin - int(nmonth*dmonth)
+!       nday = int(nmin*60.0/sidereal_day)
+!       nmin = nmin - nday*int(sidereal_day/60.0)
+!       nhour = int(nmin/60.0)
+!       nmin = nmin - 60*nhour
 
       ihead(1) = kcode
       ihead(2) = klev
@@ -501,7 +539,36 @@
 !     *********************
       netoro(:) = groundoro(:) + glacieroro(:)
       call writegp(40,netoro,302,0)
+
+!     ********************
+!     * Cos Solar Zenith *
+!     ********************
+         
+      azmuz(:) = azmuz(:)/real(naccuout)   
+      call writegp(40,azmuz,318,0)
       
+      call finishuptext(azmuz,"cossolarzenit")
+      
+!     *****************************
+!     * Weatherable Precipitation *
+!     *****************************
+        
+      asigrain(:) = asigrain(:)/real(naccuout)
+      call writegp(40,asigrain,319,0)
+
+!     ***********************
+!     * Minimum Temperature *
+!     ***********************
+         
+      call writegp(40,tempmin,320,0)
+
+!     ***********************
+!     * Maximum Temperature *
+!     ***********************
+         
+      call writegp(40,tempmax,321,0)
+                         
+            
       return
       end
 
@@ -626,6 +693,7 @@
 !
 !     reset accumulated arrays and counter
 !
+      azmuz(:)=0.
       aprl(:)=0.
       aprc(:)=0.
       aprs(:)=0.
@@ -652,6 +720,10 @@
       atsama(:)=0.
       aweathering(:) = 0.
       
+      asigrain(:) = 0.
+      tempmax(:) = 0.
+      tempmin(:) = 1.0e3
+      
       naccuout=0
 
 !     ************************************************
@@ -672,9 +744,22 @@
       subroutine outaccu
       use pumamod
       use carbonmod
+      use radmod
 !
 !     accumulate diagnostic arrays
 !
+
+      where (dls(:) .gt. 0.5) !weatherable precipitation
+         where (dt(:,NLEP) .gt. 273.15)
+            asigrain(:)=asigrain(:)+(dprl(:)+dprc(:))*8.64e7 ![mm/day]
+         endwhere
+      endwhere
+      do i=1,NHOR
+        tempmax(i) = MAX(tempmax(i),dt(i,NLEP))
+        tempmin(i) = MIN(tempmin(i),dt(i,NLEP))
+      enddo
+      
+      azmuz(:) = azmuz(:)+gmu0(:)
       aprl(:)=aprl(:)+dprl(:)
       aprc(:)=aprc(:)+dprc(:)
       aprs(:)=aprs(:)+dprs(:)

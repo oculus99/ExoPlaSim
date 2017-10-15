@@ -145,6 +145,32 @@
       
       return
       end subroutine finishup
+
+     
+!--------------------------------------------------------------------72
+!
+!     Write a gridpoint array to a text file
+
+      subroutine finishuptext(dd,fname)
+      use pumamod
+      
+      character (len=*) :: fname
+      real :: dd(NHOR)
+      real :: ddn(NUGP)
+      
+      
+      call mpgagp(ddn,dd,1)
+      
+      if (mypid==NROOT) then
+         open(93,file=fname,status='unknown')
+         do i=1,nn
+           write(93) ddn(:)
+         enddo
+         close(93)
+      endif
+      
+      return
+      end subroutine finishuptext      
       
 !--------------------------------------------------------------------72
 !
