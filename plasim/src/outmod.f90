@@ -502,6 +502,15 @@
       netoro(:) = groundoro(:) + glacieroro(:)
       call writegp(40,netoro,302,0)
 
+!     ********************
+!     * Cos Solar Zenith *
+!     ********************
+         
+      azmuz(:) = azmuz(:)/real(naccuout)   
+      call writegp(40,azmuz,318,0)
+      
+      call finishuptext(azmuz,"cossolarzenit")      
+      
 !     *****************************
 !     * Weatherable Precipitation *
 !     *****************************
@@ -671,6 +680,7 @@
       atsami(:)=1.E10
       atsama(:)=0.
       aweathering(:) = 0.
+      azmuz(:) = 0.
       
       asigrain(:) = 0.
       tempmax(:) = 0.
@@ -696,6 +706,7 @@
       subroutine outaccu
       use pumamod
       use carbonmod
+      use radmod
 !
 !     accumulate diagnostic arrays
 !
@@ -735,6 +746,7 @@
       atsami(:)=AMIN1(atsami(:),dtsa(:))
       atsama(:)=AMAX1(atsama(:),dtsa(:))
       aweathering(:)=aweathering(:)+localweathering(:)
+      azmuz(:) = azmuz(:)+gmu0(:)
 
       naccuout=naccuout+1
 !

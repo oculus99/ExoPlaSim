@@ -93,9 +93,14 @@
 !
 !     initialize ice (and ocean)
 !
+!       call iceini(n_start_step,nrestart,noutput,n_days_per_year         &
+!      &     ,ngui,cts,csst,cmld,cicec,ciced,csnow,ntspd,solar_day,deglat &
+!      &     ,icemod_namelist,oceanmod_namelist,ice_output,ocean_output)
+
       call iceini(n_start_step,nrestart,noutput,n_days_per_year         &
-     &     ,ngui,cts,csst,cmld,cicec,ciced,csnow,ntspd,solar_day,deglat &
+     &     ,ngui,cts,csst,cmld,cicec,ciced,csnow,ntspd,day_24hr,deglat &
      &     ,icemod_namelist,oceanmod_namelist,ice_output,ocean_output)
+
 !
 !     set puma surface variables
 !

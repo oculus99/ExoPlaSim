@@ -707,12 +707,136 @@
       return
       end subroutine radstop
 
+! !     =================
+! !     SUBROUTINE SOLANG
+! !     =================
+! 
+!       subroutine solang
+!       use radmod
+! !
+! !     compute cosine of zenit angle including daily cycle
+! !
+! !     the following PUMA *subs* are used:
+! !
+! !     ndayofyear : compute date and time from PUMA timestep
+! !
+! !     the following PUMA variables are used:
+! !
+! !     PI         : pi=3.14...
+! !     nstep      : PUMA time step
+! !     sid(NLPP)  : sines of gaussian latitudes
+! !     csq(NLPP)  : cosine**2 of gaussian latitudes
+! !     cola(NLPP) : cosine of latitude
+! !
+! !
+! !**   1) compute day of the year and hour of the day
+! !
+!       interface
+!          integer function ndayofyear(kstep)
+!             integer, intent(in) :: kstep
+!          end function ndayofyear
+!       end interface
+! 
+!       if (nperpetual > 0) then
+!          zcday = nperpetual
+!       else
+!          zcday = ndayofyear(nstep) ! from calmod
+!       endif
+! 
+!       call ntomin(nstep,imin,ihou,iday,imon,iyea)
+! !
+! !**   2) compute declination [radians]
+! !
+!       call orb_decl(zcday, eccen, mvelpp, lambm0, obliqr, zdecl, eccf)
+! !
+! !**   3) compute zenith angle
+! !
+!       gmu0(:) = 0.0
+!       zmuz    = 0.0
+!       zdawn = sin(dawn * PI / 180.0) ! compute dawn/dusk angle 
+!       zrlon = TWOPI / NLON           ! scale lambda to radians
+!       zrtim = TWOPI / 1440.0         ! scale time   to radians
+!       zmins = ihou * 60 + imin
+!       jhor = 0
+!       if (ncstsol==0) then
+!        do jlat = 1 , NLPP
+!         do jlon = 0 , NLON-1
+!          jhor = jhor + 1
+!          zhangle = zmins * zrtim + jlon * zrlon - PI
+!          zmuz=sin(zdecl)*sid(jlat)+cola(jlat)*cos(zdecl)*cos(zhangle)
+!          if (zmuz > zdawn) gmu0(jhor) = zmuz
+!         enddo
+!        enddo
+!       else
+!        solclatcdec=solclat*solcdec
+!        solslat=sqrt(1-solclat*solclat)
+!        solsdec=sqrt(1-solcdec*solcdec)
+!        solslatsdec=solslat*solsdec
+!        do jlat = 1 , NLPP
+!         do jlon = 0 , NLON-1
+!          jhor = jhor + 1
+!          if (ndcycle == 1) then 
+!           zhangle = zmins * zrtim - PI
+!           zmuz=solslatsdec+solclatcdec*cos(zhangle)
+!          else
+!           zmuz=solslatsdec+solclatcdec/PI
+!          endif
+!          if (zmuz > zdawn) gmu0(jhor) = zmuz
+!         enddo
+!        enddo
+!       endif
+! !
+! !**  4) copy earth-sun distance (1/r**2) to radmod
+! !
+!       gdist2=eccf
+! 
+!       return
+!       end subroutine solang
+
+    
+!     ========================
+!     SUBROUTINE NEWTONRAPHSON
+!     ========================
+
+      subroutine newtonraphson(meananom,eccen,ee)
+      
+      real meananom
+      real eccen
+      real ee
+      real e0
+      integer ict
+      logical thresh
+      
+      if (eccen .lt. 0.5) then
+        ee = meananom
+      else
+        ee = 0.
+      endif
+      
+      thresh = .false.
+      
+      ict = 0
+      
+      do while (thresh .neqv. .true.)
+        e0 = ee
+        ee = ee - (ee-(meananom+eccen*sin(ee)))/(1-eccen*cos(ee))
+        if (abs(ee-e0) .le. 1.0e-14) thresh = .true.
+        ict = ict + 1
+        if (ict .gt. 100.0) thresh = .true.
+      enddo 
+      
+      return
+      end subroutine newtonraphson
+    
+
 !     =================
 !     SUBROUTINE SOLANG
 !     =================
 
       subroutine solang
       use radmod
+      
+      real ma, ea, anomarg, trueanom, phi, thyng, thing
 !
 !     compute cosine of zenit angle including daily cycle
 !
@@ -740,10 +864,14 @@
       if (nperpetual > 0) then
          zcday = nperpetual
       else
-         zcday = ndayofyear(nstep) ! from calmod
+!          zcday = ndayofyear(nstep) ! from calmod
+         zcday = mod(nstep*mpstep*60.0/sidereal_day,sidereal_year) !Because come on, if we're measuring minutes, we
+                                                                   !don't need a calendar routine to figure out how
+                                                                   !many days have passed. Sheesh.
       endif
+      
 
-      call ntomin(nstep,imin,ihou,iday,imon,iyea)
+!       call ntomin(nstep,imin,ihou,iday,imon,iyea)
 !
 !**   2) compute declination [radians]
 !
@@ -755,15 +883,47 @@
       zmuz    = 0.0
       zdawn = sin(dawn * PI / 180.0) ! compute dawn/dusk angle 
       zrlon = TWOPI / NLON           ! scale lambda to radians
-      zrtim = TWOPI / 1440.0         ! scale time   to radians
-      zmins = ihou * 60 + imin
+!       zrtim = TWOPI / 1440.0         ! scale time   to radians
+!       zrtim = TWOPI / (solar_day*60.0) ! radians per minute
+      zrtim = TWOPI / (sidereal_day/60.0)
+!       zmins = ihou * 60 + imin
+      zmins = mpstep*nstep
       jhor = 0
       if (ncstsol==0) then
+! +++ AYP      
+       thyng = mvelpp-PI
+       thing = sidereal_year/60.0
+       ma = (TWOPI/thing)*zmins - thyng  !Mean anomaly. We assume we start the 
+       ma = ma - 0.5*PI                  !orbit pi/2 before vernal equinox (ascending node).
+       ma = mod(ma,TWOPI)                                 
+          
+       call newtonraphson(ma,eccen,ea)                    !Newton-Raphson iterator to get the 
+                                                          !eccentric anomaly
+                                                          
+       thyng = tan(ea*0.5)
+       anomarg = sqrt( (1+eccen)/(1-eccen) * thyng*thyng)
+       
+       if (thyng .lt. 0.) trueanom = 2*atan(0.0-anomarg)
+       if (thyng .ge. 0.) trueanom = 2*atan(anomarg)
+       
+       if (trueanom .lt. 0) trueanom = trueanom + TWOPI   !true anomaly
+       trueanom = mod(trueanom+PI, TWOPI)                 !vector pointed at the sun
+! ---       
        do jlat = 1 , NLPP
         do jlon = 0 , NLON-1
          jhor = jhor + 1
-         zhangle = zmins * zrtim + jlon * zrlon - PI
-         zmuz=sin(zdecl)*sid(jlat)+cola(jlat)*cos(zdecl)*cos(zhangle)
+!          zhangle = zmins * zrtim + jlon * zrlon - PI
+         
+! +++ AYP: This should compute the zenith angle for arbitrary closed orbits by actually
+!       comparing the geographical normal vector to the true anomaly
+
+         phi = zmins*zrtim + jlon*zrlon !Longitude relative to fixed stars
+         phi = mod(phi,TWOPI)
+         zhangle = trueanom - phi !Angle between true anomaly + pi and the current fixed longitude
+         if (zhangle .gt. PI) zhangle = zhangle - TWOPI
+         if (zhangle .lt. 0.0-PI) zhangle = zhangle + TWOPI
+! --- 
+         zmuz = sin(zdecl)*sid(jlat) + cola(jlat)*cos(zdecl)*cos(zhangle)
          if (zmuz > zdawn) gmu0(jhor) = zmuz
         enddo
        enddo
@@ -792,7 +952,6 @@
 
       return
       end subroutine solang
-
 
 !     ===============
 !     SUBROUTINE MKO3

@@ -223,7 +223,8 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 
       call mpbci(nstep   ) ! current timestep
       call mpbci(mstep   ) ! current timestep in month
-      call mpbci(ntspd   ) ! number of timesteps per day
+      call mpbci(ntspd   ) ! number of timesteps per 24-hour day
+      call mpbci(ntspsd  ) ! number of timesteps per sidereal day
 
       call mpbci(mpstep)   ! minutes per timestep
       call mpbci(n_days_per_month)
@@ -284,6 +285,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call mpbcr(rdbrv   )
       call mpbcr(ww      )
       call mpbcr(solar_day)
+      call mpbcr(day_24hr)
       call mpbcr(sidereal_day)
       call mpbcr(tropical_year)
       call mpbcr(sidereal_year)
@@ -322,8 +324,10 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 
 !     Copy some calendar variables to calmod
 
+!       call calini(n_days_per_month,n_days_per_year,n_start_step,ntspd &
+!                  ,solar_day,-1)
       call calini(n_days_per_month,n_days_per_year,n_start_step,ntspd &
-                 ,solar_day,-1)
+                 ,day_24hr,-1)
       if (nrestart == 0) nstep = n_start_step ! timestep since 01-01-0001
       call updatim(nstep)  ! set date & time array ndatim
 
@@ -492,7 +496,8 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 
       ikits = nkits
       do jkits=1,ikits
-         deltsec  = (solar_day / ntspd) / (2**nkits)
+!          deltsec  = (solar_day / ntspd) / (2**nkits)
+         deltsec = (day_24hr / ntspd) / (2**nkits)
          deltsec2 = deltsec + deltsec
          delt     = (TWOPI     / ntspd) / (2**nkits)
          delt2    = delt + delt
@@ -512,7 +517,8 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !     * with 1 planetary rotation per sidereal day (2 Pi) of Earth   *
 !     ****************************************************************
 
-      deltsec  = solar_day / ntspd   ! timestep in seconds
+!       deltsec  = solar_day / ntspd   ! timestep in seconds
+      deltsec  = day_24hr / ntspd    ! timestep in seconds
       deltsec2 = deltsec + deltsec   ! timestep in seconds * 2
       delt     = TWOPI     / ntspd   ! timestep scaled
       delt2    = delt + delt
@@ -993,20 +999,52 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !
 !     preset namelist parameter according to model set up
 !
+!       if (NLEV==10) then
+!          tfrc(1)      =  20.0 * solar_day
+!          tfrc(2)      = 100.0 * solar_day
+!          tfrc(3:NLEV) =   0.0 * solar_day
+!       endif
+! !
+!       if(NTRU==42) then
+!        nhdiff=16
+!        ndel(:)=4
+!        tdissq(:)=0.1  * solar_day
+!        tdisst(:)=0.76 * solar_day
+!        tdissz(:)=0.3  * solar_day
+!        tdissd(:)=0.06 * solar_day
+!       endif
+
       if (NLEV==10) then
-         tfrc(1)      =  20.0 * solar_day
-         tfrc(2)      = 100.0 * solar_day
-         tfrc(3:NLEV) =   0.0 * solar_day
+         tfrc(1)      =  20.0 * day_24hr
+         tfrc(2)      = 100.0 * day_24hr
+         tfrc(3:NLEV) =   0.0 * day_24hr
       endif
 !
       if(NTRU==42) then
        nhdiff=16
        ndel(:)=4
-       tdissq(:)=0.1  * solar_day
-       tdisst(:)=0.76 * solar_day
-       tdissz(:)=0.3  * solar_day
-       tdissd(:)=0.06 * solar_day
+       tdissq(:)=0.1  * day_24hr
+       tdisst(:)=0.76 * day_24hr
+       tdissz(:)=0.3  * day_24hr
+       tdissd(:)=0.06 * day_24hr
       endif
+
+!       	Unclear if the diffusion coefficients are supposed to just be in 24-hour days, or
+! 		if they depend the planet's rotation rate
+!       if (NLEV==10) then
+!          tfrc(1)      =  20.0 * sidereal_day
+!          tfrc(2)      = 100.0 * sidereal_day
+!          tfrc(3:NLEV) =   0.0 * sidereal_day
+!       endif
+! !
+!       if(NTRU==42) then
+!        nhdiff=16
+!        ndel(:)=4
+!        tdissq(:)=0.1  * sidereal_day
+!        tdisst(:)=0.76 * sidereal_day
+!        tdissz(:)=0.3  * sidereal_day
+!        tdissd(:)=0.06 * sidereal_day
+!       endif
 
 !
 !     read namelist
@@ -1055,13 +1093,24 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
          endif
       endif
 
-!     Make sure that (mpstep * 60) * ntspd = solar_day
+! !     Make sure that (mpstep * 60) * ntspd = solar_day
+! 
+!       if (mpstep > 0) then             ! timestep given in [min]
+!          ntspd = nint(solar_day) / (mpstep * 60)
+!          ntspd = ntspd + mod(ntspd,2)  ! make even
+!       endif
+!       mpstep = solar_day  / (ntspd * 60)
+
+!     Make sure that (mpstep * 60) * ntspd = day_24hr
 
       if (mpstep > 0) then             ! timestep given in [min]
-         ntspd = nint(solar_day) / (mpstep * 60)
+         ntspd = nint(day_24hr) / (mpstep * 60)
          ntspd = ntspd + mod(ntspd,2)  ! make even
       endif
-      mpstep = solar_day  / (ntspd * 60)
+      mpstep = day_24hr  / (ntspd * 60)
+      
+      ntspsd = sidereal_day / (mpstep * 60)
+
       nafter = ntspd
       if (nwpd > 0 .and. nwpd <= ntspd) then
          nafter = ntspd / nwpd
@@ -1089,8 +1138,10 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 
 !     Convert start date to timesteps since 1-Jan-0000
 
+!       call calini(n_days_per_month,n_days_per_year,n_start_step,ntspd &
+!                  ,solar_day,0)
       call calini(n_days_per_month,n_days_per_year,n_start_step,ntspd &
-                 ,solar_day,0)
+                 ,day_24hr,0)
       call cal2step(n_start_step,ntspd,n_start_year,n_start_month,1,0,0)
 
 !     Compute simulation time in [months]
@@ -1132,8 +1183,14 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !     set sponge layer time scale
 
       if(dampsp > 0.) then
-       if(dampsp < (solar_day/ntspd)) dampsp=dampsp*solar_day
-       dampsp=solar_day/(TWOPI*dampsp)
+!        if(dampsp < (solar_day/ntspd)) dampsp=dampsp*solar_day
+!        dampsp=solar_day/(TWOPI*dampsp)
+
+       if(dampsp < (day_24hr/ntspd)) dampsp=dampsp*day_24hr
+       dampsp=day_24hr/(TWOPI*dampsp)
+
+!        if(dampsp < (sidereal_day/ntspsd)) dampsp=dampsp*sidereal_day
+!        dampsp=sidereal_day/(TWOPI*dampsp)
       endif
 
 !     set franks diagnostics
@@ -1154,12 +1211,27 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       character (len=*) :: yn
 
       zmax = maxval(pf(:))
-      if (zmax < (solar_day / ntspd) .and. zmax > 0.0) then
+!       if (zmax < (solar_day / ntspd) .and. zmax > 0.0) then
+!          write(nud,*) 'old maxval(',trim(yn),') = ',zmax
+!          write(nud,*) 'assuming [days] - converting to [sec]'
+!          pf(:) = pf(:) * solar_day
+!          write(nud,*) 'new maxval(',trim(yn),') = ',maxval(pf(:))
+!       endif   
+
+      if (zmax < (day_24hr / ntspd) .and. zmax > 0.0) then
          write(nud,*) 'old maxval(',trim(yn),') = ',zmax
          write(nud,*) 'assuming [days] - converting to [sec]'
-         pf(:) = pf(:) * solar_day
+         pf(:) = pf(:) * day_24hr
          write(nud,*) 'new maxval(',trim(yn),') = ',maxval(pf(:))
       endif   
+
+!       if (zmax < (sidereal_day / ntspsd) .and. zmax > 0.0) then
+!          write(nud,*) 'old maxval(',trim(yn),') = ',zmax
+!          write(nud,*) 'assuming [days] - converting to [sec]'
+!          pf(:) = pf(:) * sidereal_day
+!          write(nud,*) 'new maxval(',trim(yn),') = ',maxval(pf(:))
+!       endif   
+
       return
       end 
          
@@ -1221,41 +1293,93 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call dayseccheck(tdissq,"tdissq")
 
       where (restim > 0.0)
-         damp = solar_day / (TWOPI * restim)
+!          damp = solar_day / (TWOPI * restim)
+
+         damp = day_24hr / (TWOPI * restim)
+!          damp = sidereal_day / (TWOPI * restim)
       elsewhere
          damp = 0.0
       endwhere
          
       where (tfrc > 0.0)
-          tfrc = solar_day / (TWOPI * tfrc)
+!           tfrc = solar_day / (TWOPI * tfrc)
+          tfrc = day_24hr / (TWOPI * tfrc)
+!           tfrc = sidereal_day / (TWOPI * tfrc)
       elsewhere
           tfrc = 0.0
       endwhere
 
 !     compute internal diffusion parameter (LAUERSON)
 
+!       do jlev=1,NLEV
+!        jdel = ndel(jlev)
+!        if (tdissd(jlev) > 0.0) then
+!         tdissd(jlev) = solar_day/(TWOPI*tdissd(jlev))
+!        else
+!         tdissd(jlev)=0.
+!        endif
+!        if (tdissz(jlev) > 0.0) then
+!         tdissz(jlev) = solar_day/(TWOPI*tdissz(jlev))
+!        else
+!         tdissz(jlev)=0.
+!        endif
+!        if (tdisst(jlev) > 0.0) then
+!         tdisst(jlev) = solar_day/(TWOPI*tdisst(jlev))
+!        else
+!         tdisst(jlev) = 0.
+!        endif
+!        if (tdissq(jlev) > 0.0) then
+!         tdissq(jlev) = solar_day/(TWOPI*tdissq(jlev))
+!        else
+!         tdissq(jlev)=0.
+!        endif
+
       do jlev=1,NLEV
        jdel = ndel(jlev)
        if (tdissd(jlev) > 0.0) then
-        tdissd(jlev) = solar_day/(TWOPI*tdissd(jlev))
+        tdissd(jlev) = day_24hr/(TWOPI*tdissd(jlev))
        else
         tdissd(jlev)=0.
        endif
        if (tdissz(jlev) > 0.0) then
-        tdissz(jlev) = solar_day/(TWOPI*tdissz(jlev))
+        tdissz(jlev) = day_24hr/(TWOPI*tdissz(jlev))
        else
         tdissz(jlev)=0.
        endif
        if (tdisst(jlev) > 0.0) then
-        tdisst(jlev) = solar_day/(TWOPI*tdisst(jlev))
+        tdisst(jlev) = day_24hr/(TWOPI*tdisst(jlev))
        else
         tdisst(jlev) = 0.
        endif
        if (tdissq(jlev) > 0.0) then
-        tdissq(jlev) = solar_day/(TWOPI*tdissq(jlev))
+        tdissq(jlev) = day_24hr/(TWOPI*tdissq(jlev))
        else
         tdissq(jlev)=0.
        endif
+
+!       do jlev=1,NLEV
+!        jdel = ndel(jlev)
+!        if (tdissd(jlev) > 0.0) then
+!         tdissd(jlev) = sidereal_day/(TWOPI*tdissd(jlev))
+!        else
+!         tdissd(jlev)=0.
+!        endif
+!        if (tdissz(jlev) > 0.0) then
+!         tdissz(jlev) = sidereal_day/(TWOPI*tdissz(jlev))
+!        else
+!         tdissz(jlev)=0.
+!        endif
+!        if (tdisst(jlev) > 0.0) then
+!         tdisst(jlev) = sidereal_day/(TWOPI*tdisst(jlev))
+!        else
+!         tdisst(jlev) = 0.
+!        endif
+!        if (tdissq(jlev) > 0.0) then
+!         tdissq(jlev) = sidereal_day/(TWOPI*tdissq(jlev))
+!        else
+!         tdissq(jlev)=0.
+!        endif
+       
        zakk=1./(real(NTRU-nhdiff)**jdel)
        jr=-1
        do jm=0,NTRU

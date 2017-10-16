@@ -1,5 +1,5 @@
 GFORTRAN module version '10' created from fftmod.f90
-MD5:9b4657953c6cb617d846c705a3bbc17b -- If you edit this, you'll get what you deserve.
+MD5:8c5d0a6c22953307cdddd556eb5ffc81 -- If you edit this, you'll get what you deserve.
 
 (() () () () () () () () () () () () () () () () () () () () () () () ()
 () () ())
@@ -26,7 +26,7 @@ INTEGER 4 0 0 0 INTEGER ()) 0 '13')) 0 () () () 0 0)
 IMPLICIT-SAVE 0 0) (INTEGER 4 0 0 0 INTEGER ()) 0 0 () (CONSTANT (
 INTEGER 4 0 0 0 INTEGER ()) 0 '13') () 0 () () () 0 0)
 6 'trigs' 'fftmod' '' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN
-IMPLICIT-SAVE 0 0 ALLOCATABLE DIMENSION) (REAL 4 0 0 0 REAL ()) 0 0 () (
+IMPLICIT-SAVE 0 0 ALLOCATABLE DIMENSION) (REAL 8 0 0 0 REAL ()) 0 0 () (
 1 0 DEFERRED () ()) 0 () () () 0 0)
 )
 

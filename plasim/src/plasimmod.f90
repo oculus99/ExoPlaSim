@@ -136,7 +136,8 @@
       integer :: n_run_days      =       0 ! days  to run (debugging)
       integer :: n_run_steps     =       0 ! steps to run (debugging)
       integer :: mpstep          =       0 ! minutes/timestep = 1day/ntspd
-      integer :: ntspd           =       0 ! number of timesteps per day
+      integer :: ntspd           =       0 ! number of timesteps per 24-hour day
+      integer :: ntspsd          =       0 ! number of timesteps per sidereal day
       integer :: nwpd            =       1 ! number of writes per day
       integer :: ndatim(7)       =      -1 ! date & time array
       real    :: tmstart         =     0.0 ! start of run
@@ -426,6 +427,7 @@
       real :: atsama(NHOR)= 0. ! maximum surface air temperature
       real :: atsami(NHOR)= 0. ! minimum surface air temperature
       real :: ats0(NHOR)  = 0. ! accumulated surface temperature
+      real :: azmuz(NHOR) = 0. ! accumulated cosine solar zenith angle
       
       real :: asigrain(NHOR) = 0. !accumulated weathering-significant precipitation [mm/day]
       real :: tempmax(NHOR) = 0. !accumulated maximum temperature
@@ -523,6 +525,7 @@
       real :: plarad = 0.0             ! Planet radius
       real :: pnu    = 0.0             ! Time filter
       real :: sidereal_day  = 0.0      ! Length of sidereal day [sec]
+      real :: day_24hr = 86400.0       ! 24-hour day [sec] (used in timescales)
       real :: solar_day     = 0.0      ! Length of solar day [sec]
       real :: sidereal_year = 0.0      ! Length of sidereal year [sec]
       real :: tropical_year = 0.0      ! Length of tropical year [sec]

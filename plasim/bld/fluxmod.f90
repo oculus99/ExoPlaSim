@@ -209,6 +209,18 @@
 
       zbz0(:)=znl(:)/dz0(:)
 
+! ! $$$
+!       open(unit=43,file='znldbg',status='unknown',position='append')
+!       do jlat=1,NLPP
+! !          do jlon=1,NLON
+! !             write(43,'(1p8e3.15)',advance='no') dz0((jlat-1)*NLON+jlon)
+! !          enddo
+! 
+!          write(43,*) zbz0((jlat-1)*NLON+1:jlat*NLON)
+!       enddo
+!       close(43)
+! ! $$$     
+      
 !
 !     bulk richardson number
 !

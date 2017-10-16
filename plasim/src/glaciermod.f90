@@ -92,7 +92,7 @@
       
       integer noromax
       
-      if (nrestart > 0.) then
+      if (nrestart > 0. .and. naqua==0) then
         call mpgetgp('dglac',dglac,NHOR,1)
         call mpgetgp('groundsg',groundoro ,NHOR,1)
         call mpgetgp('dglacsg' ,glacieroro,NHOR,1)
@@ -103,7 +103,7 @@
         glacieroro(:) = 0.0
       endif
       
-      if (nglacier .eq. 1) then
+      if (nglacier .eq. 1 .and. naqua==0) then
       
       if (nrestart > 0.) then     
         call mpgagp(zoro,doro,1)
