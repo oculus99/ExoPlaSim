@@ -35,13 +35,13 @@ if [ $MOST_F90 != "NO_F90" ] ; then
       echo "gfortran version " $GFMAJ.$GFMIN
       # flags for gfortran version >= 4.9 [ -ffpe-summary ]
       if [ "$GFVER" -ge "409" ] ; then
-         MOST_F90_OPTS="-O3 -cpp -fcheck=all -ffixed-line-length-132 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=zero"
+         MOST_F90_OPTS="-Og -ggdb3 -cpp -fcheck=all -ffixed-line-length-132 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=zero"
          DEBUG_F90_OPTS="-g -O0 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -fcheck=all -finit-real=snan"
          echo > most_precision_options "MOST_PREC=-fdefault-real-8"
          PREC_OPTS="-fdefault-real-8"
       # flags for gfortran version 4.5 - 4.8
       elif [ "$GFVER" -ge "405" ] ; then
-         MOST_F90_OPTS="-O3 -cpp -fcheck=all -ffixed-line-length-132 -finit-real=zero -ffpe-trap=invalid,zero,overflow"
+         MOST_F90_OPTS="-Og -ggdb3 -cpp -fcheck=all -ffixed-line-length-132 -finit-real=zero -ffpe-trap=invalid,zero,overflow"
          DEBUG_F90_OPTS="-g -O0 -ffpe-trap=invalid,zero,overflow -fcheck=all -finit-real=snan"
          echo > most_precision_options "MOST_PREC=-fdefault-real-8"
          PREC_OPTS="-fdefault-real-8"
@@ -57,6 +57,7 @@ if [ $MOST_F90 != "NO_F90" ] ; then
    echo  > most_compiler "MOST_F90=$MOST_F90"
    echo >> most_compiler "MOST_F90_OPTS=$MOST_F90_OPTS"
    echo >> most_compiler "MPIMOD=mpimod_stub"
+   echo >> most_compiler "UTILMOD=utilies_stub"
    echo  > most_debug_options "MOST_F90_OPTS=$DEBUG_F90_OPTS"
    
    echo  > plasim/bld/most_snow_build4 "#!/bin/bash"
@@ -177,6 +178,7 @@ if [ $MPI_F90 != "NO_F90" ] ; then
    echo >> most_compiler_mpi MOST_F90=$MPI_F90
    echo >> most_compiler_mpi "MOST_F90_OPTS=$MOST_F90_OPTS"
    echo >> most_compiler_mpi "MPIMOD=mpimod"
+   echo >> most_compiler_mpi "UTILMOD=utilities"
    echo "Found MPI FORTRAN-90 compiler at: $F90_PATH"
 else
    echo "********************************************"

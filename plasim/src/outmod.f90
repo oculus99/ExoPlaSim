@@ -502,6 +502,15 @@
       netoro(:) = groundoro(:) + glacieroro(:)
       call writegp(40,netoro,302,0)
 
+!     ********************
+!     * Cos Solar Zenith *
+!     ********************
+         
+      azmuz(:) = azmuz(:)/real(naccuout)   
+      call writegp(40,azmuz,318,0)
+      
+      call finishuptext(azmuz,"cossolarzenit")
+      
 !     *****************************
 !     * Weatherable Precipitation *
 !     *****************************
@@ -675,6 +684,7 @@
       asigrain(:) = 0.
       tempmax(:) = 0.
       tempmin(:) = 1.0e3
+      azmuz(:) = 0.
       
       naccuout=0
 
@@ -735,6 +745,7 @@
       atsami(:)=AMIN1(atsami(:),dtsa(:))
       atsama(:)=AMAX1(atsama(:),dtsa(:))
       aweathering(:)=aweathering(:)+localweathering(:)
+      azmuz(:) = azmuz(:)+gmu0(:)
 
       naccuout=naccuout+1
 !
