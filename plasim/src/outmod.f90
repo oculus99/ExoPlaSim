@@ -706,6 +706,7 @@
       subroutine outaccu
       use pumamod
       use carbonmod
+      use radmod
 !
 !     accumulate diagnostic arrays
 !
