@@ -1,0 +1,10 @@
+Modifications to PlaSim to enable it to handle any orbit:
+
+
+solar_day -> sidereal_day
+
+radmod.f90 -- added new zenith angle calculation based on sidereal time.
+
+
+
+solar_day -> standard_day
