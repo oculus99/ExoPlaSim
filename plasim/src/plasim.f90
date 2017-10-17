@@ -210,6 +210,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call mpbci(nveg    ) ! vegetation switch
       call mpbci(noutput ) ! write data switch
       call mpbci(nafter  ) ! write data interval
+      call mpbci(ntsp24h ) ! timesteps in a standard day
       call mpbci(nwpd    ) ! number of writes per day
       call mpbci(ncoeff  ) ! number of modes to print
       call mpbci(ndiag   ) ! write diagnostics interval
@@ -285,6 +286,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call mpbcr(ww      )
       call mpbcr(solar_day)
       call mpbcr(sidereal_day)
+      call mpbcr(standard_day)
       call mpbcr(tropical_year)
       call mpbcr(sidereal_year)
       call mpbcr(rotspd)

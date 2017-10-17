@@ -285,7 +285,13 @@
       ! weathering rate (factor of 3.33 increase, seems okay based on 1 AU tests) due to continental weathering. If 
       ! we were to add in seafloor weathering, then we'd add factors to account for changing land and sea area, but
       ! there would also be weights to determine the relative contributions of each, and those are parameterized (poorly).
-       if (mypid==NROOT) avgweathering = avgweathering / landfraction
+       if (mypid==NROOT) then
+         if (landfraction > 0.) then
+           avgweathering = avgweathering / landfraction
+         else
+           avgweathering = 0.
+         endif
+       endif
       
       if (mypid==NROOT) then
          globalweath(:) = globalweath(:)*VEARTH*1000.0
@@ -305,10 +311,10 @@
       call mpbcr(co2)
       call mpbcr(psurf)
       
-      call co2update !(uncomment if you want CO2 changing year-by-year within a run)
+!       call co2update !(uncomment if you want CO2 changing year-by-year within a run)
       n_run_months = 0
       call mpbci(n_run_months)
-      call psurfupdate !(uncomment if you want surface pressure changing every year)
+!       call psurfupdate !(uncomment if you want surface pressure changing every year)
       
       return
       end subroutine carbonstop
@@ -321,11 +327,12 @@
       use radmod
       
       namelist/radmod_nl/ndcycle,ncstsol,solclat,solcdec,no3,co2        &
-     &               ,iyrbp,nswr,nlwr                                   &
+     &               ,iyrbp,nswr,nlwr,nfixed,fixedlon                   &
      &               ,a0o3,a1o3,aco3,bo3,co3,toffo3,o3scale             &
      &               ,nsol,nswrcl,nrscat,rcl1,rcl2,acl2,clgray,tpofmt   &
      &               ,acllwr,tswr1,tswr2,tswr3,th2oc,dawn
       if (mypid == NROOT) then
+      fixedlon = fixedlon*180./PI
       open(23,file=radmod_namelist)
       write(23,radmod_nl)
       close(23)

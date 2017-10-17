@@ -502,13 +502,13 @@
       netoro(:) = groundoro(:) + glacieroro(:)
       call writegp(40,netoro,302,0)
 
-!     ********************
-!     * Cos Solar Zenith *
-!     ********************
-         
-      azmuz(:) = azmuz(:)/real(naccuout)   
-      call writegp(40,azmuz,318,0)
-      
+! !     ********************
+! !     * Cos Solar Zenith *
+! !     ********************
+!          
+!       azmuz(:) = azmuz(:)/real(naccuout)   
+!       call writegp(40,azmuz,318,0)
+!       
 !     *****************************
 !     * Weatherable Precipitation *
 !     *****************************

@@ -198,7 +198,12 @@
          write(nud,'("* Namelist OCEANMOD_NL from <",a17,"> *")') &
                trim(oceanmod_namelist)
          write(nud,'("*************************************************")')
+         write(nud,'("About to write namelist...")')
+         write(nud,*) solar_day
+         write(nud,*) ntspd
+         write(nud,*) taunc
          write(nud,oceanmod_nl)
+         write(nud,'("Wrote namelist....")')
          close(12)
       endif
 

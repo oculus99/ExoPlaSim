@@ -40,6 +40,7 @@
       real    :: o3scale = 1.0    ! scale o3 concentration
       integer :: no3     = 1      ! switch for ozon (0=no,1=yes,2=datafile)
       integer :: nsol    = 1      ! switch for solang (1/0=yes/no)
+      integer :: nfixed  = 0      ! switch for fixed zenith angle (1/0=yes/no)
       integer :: nswr    = 1      ! switch for swr (1/0=yes/no)
       integer :: nlwr    = 1      ! switch for lwr (1/0=yes/no)
       integer :: nswrcl  = 1      ! switch for computed cloud props.(1/0=y/n)
@@ -101,6 +102,7 @@
 !
 !     auxiliary variables for solar zenit angle calculations
 !
+      real :: fixedlon   = 0.0 ! fixed longitude at which zmuz = 1
       real :: solclatcdec      ! cos(lat)*cos(decl) 
       real :: solslat          ! sin(lat)
       real :: solsdec          ! sin(decl)
@@ -139,7 +141,7 @@
 !**   0) define namelist
 !
       namelist/radmod_nl/ndcycle,ncstsol,solclat,solcdec,no3,co2        &
-     &               ,iyrbp,nswr,nlwr                                   &
+     &               ,iyrbp,nswr,nlwr,nfixed,fixedlon                   &
      &               ,a0o3,a1o3,aco3,bo3,co3,toffo3,o3scale             &
      &               ,nsol,nswrcl,nrscat,rcl1,rcl2,acl2,clgray,tpofmt   &
      &               ,acllwr,tswr1,tswr2,tswr3,th2oc,dawn
@@ -263,13 +265,17 @@
          write(nud,'(" * Namelist RADMOD_NL from <radmod_namelist> *")')
          write(nud,'(" *********************************************")')
          write(nud,radmod_nl)
+         fixedlon = fixedlon * PI / 180.0
       endif ! (mypid==NROOT)
+      
 !
 !     broadcast namelist parameter
 !
       call mpbci(ndcycle)
       call mpbci(ncstsol)
       call mpbci(no3)
+      call mpbci(nfixed)
+      call mpbcr(fixedlon)
       call mpbcr(a0o3)
       call mpbcr(a1o3)
       call mpbcr(aco3)
@@ -281,6 +287,7 @@
       call mpbcr(gsol0)
       call mpbcr(solclat)
       call mpbcr(solcdec)
+      call mpbcr(fixedlon)
       call mpbcr(clgray)
       call mpbcr(dawn)
       call mpbcr(th2oc)
@@ -707,12 +714,50 @@
       return
       end subroutine radstop
 
+  
+!     ========================
+!     SUBROUTINE NEWTONRAPHSON
+!     ========================
+
+      subroutine newtonraphson(meananom,eccen,ee)
+      
+      real meananom
+      real eccen
+      real ee
+      real e0
+      integer ict
+      logical thresh
+      
+      if (eccen .lt. 0.5) then
+        ee = meananom
+      else
+        ee = 0.
+      endif
+      
+      thresh = .false.
+      
+      ict = 0
+      
+      do while (thresh .neqv. .true.)
+        e0 = ee
+        ee = ee - (ee-(meananom+eccen*sin(ee)))/(1-eccen*cos(ee))
+        if (abs(ee-e0) .le. 1.0e-14) thresh = .true.
+        ict = ict + 1
+        if (ict .gt. 100.0) thresh = .true.
+      enddo 
+      
+      return
+      end subroutine newtonraphson
+            
+      
 !     =================
 !     SUBROUTINE SOLANG
 !     =================
 
       subroutine solang
       use radmod
+      
+      real ma, ea, anomarg, trueanom, phi, thyng, thing
 !
 !     compute cosine of zenit angle including daily cycle
 !
@@ -755,16 +800,55 @@
       zmuz    = 0.0
       zdawn = sin(dawn * PI / 180.0) ! compute dawn/dusk angle 
       zrlon = TWOPI / NLON           ! scale lambda to radians
-      zrtim = TWOPI / 1440.0         ! scale time   to radians
-      zmins = ihou * 60 + imin
+!       zrtim = TWOPI / 1440.0         ! scale time   to radians
+!       zmins = ihou * 60 + imin
+      zrtim = TWOPI / (sidereal_day/60.0) ! radians per minute
+      zmins = mpstep*nstep                ! minutes elapsed since start
       jhor = 0
       if (ncstsol==0) then
+      
+      thyng = mvelpp-PI
+      thing = sidereal_year/60.0
+      ma = (THOPI/thing)*zmins - thyng !Mean anomaly. We assume Jan 1 is pi/2 before
+      ma = ma - 0.5*PI                 !vernal equinox (ascending node)
+      ma = mod(ma,TWOPI)
+      
+      call newtonraphson(ma,eccen,ea) !Iterate to get eccentric anomaly
+      
+      thyng = tan(ea*0.5)
+      anomarg = sqrt( (1+eccen)/(1-eccen) * thyng*thyng)
+      
+           ! Compute the true anomaly
+      if (thyng .lt. 0.) trueanom = 2*atan(-anomarg)
+      if (thyng .ge. 0.) trueanom = 2*atan( anomarg)
+      
+      if (trueanom .lt. 0) trueanom = trueanom + TWOPI
+      trueanom = mod(trueanom+PI, TWOPI) ! Flip the vector around so it points at the sun
+      
+      
        do jlat = 1 , NLPP
+!         if (jlat==NLPP/2) then
+!           open(unit=71,file="zhanglediags",status='unknown')
+!           write(71,*) jlat
+!           close(71)
+!         endif
         do jlon = 0 , NLON-1
          jhor = jhor + 1
-         zhangle = zmins * zrtim + jlon * zrlon - PI
+         
+         phi = jlon*zrlon - PI + zmins*zrtim
+         phi = mod(phi,TWOPI)
+         
+!          zhangle = zmins * zrtim + jlon * zrlon - PI
+
+         zhangle = trueanom - phi !Angle between (true anomaly + pi) and current longitude
+
+         if (nfixed == 1) zhangle = jlon*zrlon - fixedlon
+              
          zmuz=sin(zdecl)*sid(jlat)+cola(jlat)*cos(zdecl)*cos(zhangle)
          if (zmuz > zdawn) gmu0(jhor) = zmuz
+!          open(unit=71,file="zhanglediags",status='unknown',position='append')
+!          write(71,*) nfixed,fixedlon,jlon*zrlon,jlat,zhangle,gmu0(jhor)
+!          close(71)
         enddo
        enddo
       else
