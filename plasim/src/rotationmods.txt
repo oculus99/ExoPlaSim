@@ -8,3 +8,7 @@ radmod.f90 -- added new zenith angle calculation based on sidereal time.
 
 
 solar_day -> standard_day
+
+seamod.f90 -- passing solar day and ntspd to iceini. See below.
+icemod.f90 -- solar day used to define a physical relaxation time unrelated to planet properties
+oceanmod.f90 -- solar day used again for physical parameters and as a calendar check, called by iceini

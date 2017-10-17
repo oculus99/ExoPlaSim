@@ -1058,10 +1058,14 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !     Make sure that (mpstep * 60) * ntspd = solar_day
 
       if (mpstep > 0) then             ! timestep given in [min]
+      
          ntspd = nint(solar_day) / (mpstep * 60)
          ntspd = ntspd + mod(ntspd,2)  ! make even
       endif
       mpstep = solar_day  / (ntspd * 60)
+      
+      ntsp24h = nint(standard_day) / (mpstep*60)
+      
       nafter = ntspd
       if (nwpd > 0 .and. nwpd <= ntspd) then
          nafter = ntspd / nwpd
