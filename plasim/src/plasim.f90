@@ -206,6 +206,8 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call mpbci(nfixorb ) ! Global switch to fix orbit
       call mpbci(ntpal   ) ! color pallet for T
 
+      call mpbci(nspfilter) ! Switch for different spectral filters
+      
       call mpbci(kick    ) ! add noise for kick > 0
       call mpbci(naqua   ) ! aqua planet switch
       call mpbci(nveg    ) ! vegetation switch
@@ -975,7 +977,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
                      kick    , mpstep  , nadv    , naqua   , ncoeff     &
                    , ndel    , ndheat  , ndiag   , ndiagcf , ndiaggp    &
                    , ndiaggp2d , ndiaggp3d                              &
-                   , ndiagsp   , ndiagsp2d , ndiagsp3d                  &
+                   , ndiagsp   , ndiagsp2d , ndiagsp3d , nspfilter      &
                    , ndl     , nentropy, nentro3d, neqsig  , nflux      &
                    , ngui    , nguidbg , nhdiff  , nhordif , nkits      &
                    , noutput    &
@@ -1272,11 +1274,20 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
          do jn=jm,NTRU
             jr=jr+2
             ji=jr+1
-            zsq = (jn - nhdiff)
-            if(jn >= nhdiff) then
-             sak(jr,jlev) = zakk*zsq**jdel
-            else
-             sak(jr,jlev) = 0.
+            if (nspfilter .eq. 0) then
+              zsq = (jn - nhdiff)
+              if(jn >= nhdiff) then
+               sak(jr,jlev) = zakk*zsq**jdel
+              else
+               ! Why is this zero? e.g. sqt is -tdissq*sakpp*sqp/(1+dt2*tdissq*sakpp)
+               ! Ah, this is applied to the spectral tendency, and then the tendency is added
+               ! AGAIN, so the effect is (1-diff)*var.
+               sak(jr,jlev) = 0.
+              endif
+            else if (nspfilter .eq. 1) then !Cesaro filter
+              sak(jr,jlev) = real(jn)/(NTRU+1)
+            else if (nspfilter .eq. 2) then !Exponential filter
+              sak(jr,jlev) = 1.0 - exp(-32.0*(real(jn)/NTRU)**8)
             endif
             sak(ji,jlev) = sak(jr,jlev)
          enddo

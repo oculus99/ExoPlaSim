@@ -195,6 +195,8 @@
       integer :: nglspec = 0
 !>>> AYP      
 
+      integer :: nspfilter = 0 ! Which kind of filter to use: 0=default, 1=cesaro, 2=exponential
+
 !     ***********************
 !     * Global Real Scalars *
 !     ***********************

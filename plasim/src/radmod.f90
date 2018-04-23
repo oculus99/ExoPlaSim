@@ -16,10 +16,14 @@
 !
 
       parameter(SBK = 5.67E-8)  ! Stefan-Bolzman Const.
+!       parameter(zsolar1=0.517)  
+!       parameter(zsolar2=0.483)  
 
 !
 !*    2.2) namelist parameters (see *sub* radini)
 !
+
+      real    :: starbbtemp = 5607.9 ! Star's blackbody surface temperature (K)
 
       real    :: gsol0   = 1367.0 ! solar constant (set in planet module)
       real    :: solclat = 1.0    ! cos of lat of insolation if ncstsol=1
@@ -53,6 +57,8 @@
       integer :: nfixed  = 0      ! Switch for fixed zenith angle (0/1=no/yes)
       real    :: fixedlon = 0.0   ! Longitude of fixed solar zenith
       real    :: slowdown = 1.0   ! Factor by which to change diurnal insolation cycle
+      
+      integer :: nstartemp = 0    ! Switch for using the star's bb temp to determine sw (0/1)
 
       real :: rcl1(3)=(/0.15,0.30,0.60/) ! cloud albedos spectral range 1
       real :: rcl2(3)=(/0.15,0.30,0.60/) ! cloud albedos spectral range 2
@@ -71,6 +77,8 @@
 
       real, allocatable :: dqo3cl(:,:,:)   ! climatological O3 (used if NO3=2)
 
+      real :: zsolars(2) = 0.0             ! Container for storing solar constants
+      
 !
 !*    2.4) scalars
 !
@@ -79,6 +87,9 @@
       real :: time4rad = 0.      ! CPU time for radiation
       real :: time4swr = 0.      ! CPU time for short wave radiation
       real :: time4lwr = 0.      ! CPU time for long wave radiation
+      
+      real :: zsolar1 = 0.517    ! spectral partitioning 1 (wl < 0.75mue)
+      real :: zsolar2 = 0.483    ! spectral partitioning 2 (wl > 0.75mue)
 
 !
 !     2.5 orbital parameters
@@ -116,6 +127,90 @@
 !     radiation subroutines
 !
 
+!     ===================
+!     SUBROUTINE SOLARINI
+!     ===================
+
+      subroutine solarini
+      use radmod
+
+!       parameter(planckh = 6.62607004e-34)
+!       parameter(boltzk = 1.38064852e-23 )
+!       parameter(cc = 299792458.0        )
+      parameter(const = 0.0143877735383)    !hc/k
+      
+      real :: wv1(1024) !Wavelengths in meters up to 0.75 microns
+      real :: wv2(1024) !Wavelength in meters starting at 0.75 microns
+      real :: wvm1(1024) !Wavelengths in microns up to 0.75 microns
+      real :: wvm2(1024) !Wavelength in microns starting at 0.75 microns
+      real :: bb1(1024) !Planck function for x<0.75 microns
+      real :: bb2(1024) !Planck function for x>0.75 microns
+      
+      real dl1,dl2,hinge,const1,const2,z1,z2,znet,wmin,lwmin
+      integer k
+      
+      if (mypid == NROOT) then
+      
+        wmin = const/(starbbtemp*36.841361) !Wavelength where exponential term is <=1.0e-16
+        lwmin = log10(wmin)
+      
+        hinge = log10(7.5e-7) !We care about amounts above and below 0.75 microns
+        dl1 = (hinge-lwmin)/1024.0
+        dl2 = (-4-hinge)/1024.0
+        
+        do k=1,1024
+          wv1(k) = 10**(lwmin+(k-1)*dl1)
+          wv2(k) = 10**(hinge+(k-1)*dl2)
+        enddo
+        do k=1,1024
+          wvm1(k) = (1.0e6 * wv1(k))**5
+          wvm2(k) = (1.0e6 * wv2(k))**5
+        enddo
+        
+!         const1 = 2*planckh*(cc**2)
+        const2 = const/starbbtemp
+        
+        do k=1,1024 !Compute the Planck function
+          bb1(k) = 1.0/wvm1(k) * 1.0/(exp(const2/wv1(k))-1) !const1/wv1(k)**5
+          bb2(k) = 1.0/wvm2(k) * 1.0/(exp(const2/wv2(k))-1)
+!           write(nud,*) wv1(k),bb1(k),wv2(k),bb2(k)
+        enddo      !The scaling and units don't actually matter, because we're going to normalize
+        
+        z1 = 0.0
+        z2 = 0.0
+        do k=1,1023    !Do a trapezoidal integration above and below 0.75 microns
+          z1 = z1 + 0.5*(bb1(k)+bb1(k+1))*(wv1(k+1)-wv1(k))
+          z2 = z2 + 0.5*(bb2(k)+bb2(k+1))*(wv2(k+1)-wv2(k))
+        enddo
+        z1 = z1 + 0.5*(bb1(1024)+bb2(1))*(wv2(1)-wv1(1024))
+        
+        
+        znet = z1+z2
+        
+        z1 = z1/znet
+        z2 = 1.0-z1
+        
+        zsolar1 = z1
+        zsolar2 = z2
+        
+        write(nud,*) "Energy fraction below 0.75 microns:",zsolar1
+        write(nud,*) "Energy fraction above 0.75 microns:",zsolar2
+
+        zsolars(1) = zsolar1
+        zsolars(2) = zsolar2
+        
+!         call put_restart_array("zsolars",zsolars,2,2,1)
+        
+      endif
+      
+      call mpbcrn(zsolars,2)
+      call mpbcr(zsolar1)
+      call mpbcr(zsolar2)
+      
+      call mpputgp('zsolars',zsolars,2,1)
+      
+      end subroutine solarini
+      
 !     =================
 !     SUBROUTINE RADINI
 !     =================
@@ -145,7 +240,7 @@
      &               ,iyrbp,nswr,nlwr,nfixed,fixedlon,slowdown          &
      &               ,a0o3,a1o3,aco3,bo3,co3,toffo3,o3scale             &
      &               ,nsol,nswrcl,nrscat,rcl1,rcl2,acl2,clgray,tpofmt   &
-     &               ,acllwr,tswr1,tswr2,tswr3,th2oc,dawn
+     &               ,acllwr,tswr1,tswr2,tswr3,th2oc,dawn,starbbtemp,nstartemp
 !
 !     namelist parameter:
 !
@@ -304,7 +399,32 @@
       call mpbci(nsol)
       call mpbci(nrscat)
       call mpbci(nswrcl)
+      call mpbcr(starbbtemp)
+      call mpbci(nstartemp)
 
+!      
+!     determine stellar parameters      
+!
+      if (nstartemp > 0) then
+        if (nrestart > 0.) then
+          call mpgetgp('zsolars',zsolars,2,1)
+          if (mypid == NROOT) then
+!             call get_restart_array("zsolars",zsolars,2,2,1)
+            zsolar1 = zsolars(1)
+            zsolar2 = zsolars(2)
+            write(nud,*) "Read zsolar1 from restart: ",zsolar1
+            write(nud,*) "Read zsolar2 from restart: ",zsolar2
+          endif
+          call mpbcr(zsolar1)
+          call mpbcr(zsolar2)
+!           call mpputgp(
+        else
+          call solarini 
+        endif
+      else
+        call mpbcr(zsolar1)
+        call mpbcr(zsolar2)
+      endif
 !
 !     determine orbital parameters
 !
@@ -701,6 +821,8 @@
 !
 !     no PUMA variables are used
 !
+      call mpputgp('zsolars',zsolars,2,1)
+
       if(mypid == NROOT .and. ntime == 1) then
        write(nud,*)'******************************************'
        write(nud,*)' CPU usage in RADSTEP (ROOT process only):  '
@@ -930,8 +1052,6 @@
 !     0) define local parameters and arrays
 !
       parameter(zero=1.E-6)     ! if insolation < zero : fluxes=0.
-      parameter(zsolar1=0.517)  ! spectral partitioning 1 (wl < 0.75mue)
-      parameter(zsolar2=0.483)  ! spectral partitioning 2 (wl > 0.75mue)
       parameter(zbetta=1.66)    ! magnification factor water vapour
       parameter(zmbar=1.9)      ! magnification factor ozon
       parameter(zro3=2.14)      ! ozon density (kg/m**3 STP)
