@@ -259,6 +259,8 @@
 
       real :: sak(NESP,NLEV)   = 0.0 ! horizontal diffusion
       real :: sakpp(NSPP,NLEV) = 0.0 ! horizontal diffusion partial
+      real :: sakf(NESP,NLEV)  = 0.0 ! Spectral filter
+      real :: sakfpp(NSPP,NLEV)= 0.0 ! Spectral filter partial
       real :: sqout(NESP,NLEV) = 0.0 ! specific humidity for output
       real :: spnorm(NESP)     = 0.0 ! Factors for output normalization
 

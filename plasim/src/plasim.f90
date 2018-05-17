@@ -321,6 +321,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 
       call mpscin(nindex,NSPP)
       call mpscsp(sak,sakpp,NLEV)
+      call mpscsp(sakf,sakfpp,NLEV)
       call mpbcrn(sigh  ,NLEV)
 
 !     Copy some calendar variables to calmod
@@ -1274,22 +1275,32 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
          do jn=jm,NTRU
             jr=jr+2
             ji=jr+1
-            if (nspfilter .eq. 0) then
-              zsq = (jn - nhdiff)
-              if(jn >= nhdiff) then
-               sak(jr,jlev) = zakk*zsq**jdel
-              else
-               ! Why is this zero? e.g. sqt is -tdissq*sakpp*sqp/(1+dt2*tdissq*sakpp)
-               ! Ah, this is applied to the spectral tendency, and then the tendency is added
-               ! AGAIN, so the effect is (1-diff)*var.
-               sak(jr,jlev) = 0.
-              endif
-            else if (nspfilter .eq. 1) then !Cesaro filter
-              sak(jr,jlev) = real(jn)/(NTRU+1)
-            else if (nspfilter .eq. 2) then !Exponential filter
-              sak(jr,jlev) = 1.0 - exp(-32.0*(real(jn)/NTRU)**8)
+!             if (nspfilter .eq. 0) then
+            zsq = (jn - nhdiff)
+            if(jn >= nhdiff) then
+             sak(jr,jlev) = zakk*zsq**jdel
+            else
+             ! Why is this zero? e.g. sqt is -tdissq*sakpp*sqp/(1+dt2*tdissq*sakpp)
+             ! Ah, this is applied to the spectral tendency, and then the tendency is added
+             ! AGAIN, so the effect is (1-diff)*var.
+             sak(jr,jlev) = 0.
             endif
+!             else if (nspfilter .eq. 1) then !Cesaro filter
+!               sak(jr,jlev) = real(jn)/(NTRU+1)
+!             else if (nspfilter .eq. 2) then !Exponential filter
+!               sak(jr,jlev) = 1.0 - exp(-32.0*(real(jn)/NTRU)**8)
+!             endif
             sak(ji,jlev) = sak(jr,jlev)
+            if (nspfilter .eq. 0) then
+              sakf(jr,jlev) = 1.0
+            else if (nspfilter .eq. 1) then !Cesaro filter
+              sakf(jr,jlev) = 1.0 - real(jn)/(NTRU+1)
+            else if (nspfilter .eq. 2) then !Exponential filter
+              sakf(jr,jlev) = exp(-32.0*(real(jn)/NTRU)**8)
+            else
+              sakf(jr,jlev) = 1.0
+            endif
+            sakf(ji,jlev) = sakf(jr,jlev)
          enddo
        enddo
       enddo
@@ -3438,6 +3449,16 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       stp = stp + delt2 * stt
       sdp = sdp + delt2 * sdt
       if (nqspec == 1) sqp = sqp + delt2 * sqt
+      
+!
+!     add spectral filters
+!
+      do jlev=1,NLEV
+        szp(:,jlev) = szp(:,jlev) * sakfpp(1:NSPP,jlev)
+        stp(:,jlev) = stp(:,jlev) * sakfpp(1:NSPP,jlev)
+        sdp(:,jlev) = sdp(:,jlev) * sakfpp(1:NSPP,jlev)
+        if (nqspec == 1) sqp(:,jlev) = sqp(:,jlev) * sakfpp(1:NSPP,jlev)
+      enddo
 
 !     initial divergence damping for a smooth start of the model in case
 !     of steep orography (Mars) or unusual initial conditions
