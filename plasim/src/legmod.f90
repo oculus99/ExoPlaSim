@@ -600,11 +600,11 @@ implicit none
 
 integer :: jlev
 
-call dv2uv(sd,sz,gu,gv)
+call dv2uv(ad,az,gu,gv)
 
 do jlev = 1,NLEV
-  if (nqspec == 1) call sp2fc(sq(1,jlev),gq(1,jlev))
-  call sp2fc(st(1,jlev),gt(1,jlev))
+  if (nqspec == 1) call sp2fc(aq(1,jlev),gq(1,jlev))
+  call sp2fc(at(1,jlev),gt(1,jlev))
 enddo
 
 call sp2fc(sp,gp)

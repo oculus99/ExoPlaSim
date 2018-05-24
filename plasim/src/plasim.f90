@@ -207,6 +207,10 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call mpbci(ntpal   ) ! color pallet for T
 
       call mpbci(nspfilter) ! Switch for different spectral filters
+      call mpbci(filterq)   ! Switch for filtering humidity
+      call mpbci(filterd)   ! Switch for filtering divergence
+      call mpbci(filterz)   ! Switch for filtering vorticity
+      call mpbci(filtert)   ! Switch for filtering temperature
       
       call mpbci(kick    ) ! add noise for kick > 0
       call mpbci(naqua   ) ! aqua planet switch
@@ -981,7 +985,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
                    , ndiagsp   , ndiagsp2d , ndiagsp3d , nspfilter      &
                    , ndl     , nentropy, nentro3d, neqsig  , nflux      &
                    , ngui    , nguidbg , nhdiff  , nhordif , nkits      &
-                   , noutput    &
+                   , noutput , filterq, filterd, filterz, filtert, nfilterexp   &
                    , npackgp , npacksp , nperpetual        , nprhor     &
                    , nprint  , nqspec  , nrad    , nsela   , nsync      &
                    , ntime   , ntspd   , nveg    , nwpd    &
@@ -1184,6 +1188,17 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       use pumamod
 
       real (kind=8) radea,zakk
+      real fn0
+      
+      if (nspfilter .eq. 3) then
+        if(NTRU==21) then
+          fn0 = 17.0
+        else if (NTRU==42) then
+          fn0 = 34.0
+        else
+          fn0 = 15.0
+        endif
+      endif
 
 !     *************************************************************
 !     * carries out all initialisation of model prior to running. *
@@ -1285,18 +1300,19 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
              ! AGAIN, so the effect is (1-diff)*var.
              sak(jr,jlev) = 0.
             endif
-!             else if (nspfilter .eq. 1) then !Cesaro filter
-!               sak(jr,jlev) = real(jn)/(NTRU+1)
-!             else if (nspfilter .eq. 2) then !Exponential filter
-!               sak(jr,jlev) = 1.0 - exp(-32.0*(real(jn)/NTRU)**8)
-!             endif
+            
+            ! Compute spectral filter
             sak(ji,jlev) = sak(jr,jlev)
             if (nspfilter .eq. 0) then
               sakf(jr,jlev) = 1.0
             else if (nspfilter .eq. 1) then !Cesaro filter
               sakf(jr,jlev) = 1.0 - real(jn)/(NTRU+1)
             else if (nspfilter .eq. 2) then !Exponential filter
-              sakf(jr,jlev) = exp(-32.0*(real(jn)/NTRU)**8)
+              sakf(jr,jlev) = exp(-32.0*(real(jn)/NTRU)**nfilterexp)
+            else if (nspfilter .eq. 3) then !Lander-Hoskins physics filter
+              sakf(jr,jlev) = exp(-(real(jn)*real(jn+1)/(fn0*(fn0+1)))**2)
+            else if (nspfilter .eq. 4) then !Riesz-2 filter
+              sakf(jr,jlev) = (1.0 - real(jn)/(NTRU+1))**2
             else
               sakf(jr,jlev) = 1.0
             endif
@@ -2566,11 +2582,43 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
        spp(1) = 0.0
        spp(2) = 0.0
       endif
-
+    
+!     Copy spectral variables into these other ones that are conveniently the same size and 
+!     no longer in use
+      adm = sdp
+      atm = stp
+      azm = szp
+      if (nqspec==1) aqm = sqp
+      
+      !Apply physics filter
+      do jlev = 1,NLEV
+        if (filterq == 1) then
+          if (nqspec == 1) aqm(:,jlev) = sakfpp(:,jlev) * aqm(:,jlev)
+        endif
+        if (filterd == 1) then
+          adm(:,jlev) = sakfpp(:,jlev) * adm(:,jlev)
+        endif
+        if (filterz == 1) then
+          azm(:,jlev) = sakfpp(:,jlev) * azm(:,jlev)
+        endif
+        if (filtert == 1) then
+          atm(:,jlev) = sakfpp(:,jlev) * atm(:,jlev)
+        endif
+      enddo 
+    
+!     Gather from mpi processes for use in gridpointd    
+    
+      call mpgallsp(ad,adm,NLEV)
+      call mpgallsp(az,azm,NLEV)
+      call mpgallsp(at,atm,NLEV)
+      if (nqspec==1) call mpgallsp(aq,aqm,NLEV)
+      
+      
 !*    now the adiabatic time step is finished beside the time filtering.
 !     2nd part of time filtering is done in subroutine spectrald
 !
 !     finaly the partial arrays are gathered from all processors (mpi)
+!     These won't be used again until after gridpointd
 !
       call mpgallsp(sd,sdp,NLEV)
       call mpgallsp(sz,szp,NLEV)
@@ -2990,7 +3038,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
        gqdt(:,jlev)=dqdt(:,jlev)*dp(:)/ww/psurf                         &
      &             +gqdt(:,jlev)
       enddo
-
+     
 !
 !     transform to spectral space
 !
@@ -3009,13 +3057,34 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       enddo
 
       call uv2dv(gudt,gvdt,sdf,szf)
-
+      
+      
       call mpsumsc(stf,stt,NLEV)
       call mpsumsc(sdf,sdt,NLEV)
       call mpsumsc(szf,szt,NLEV)
       if (nqspec == 1) call mpsumsc(sqf,sqt,NLEV)
       if (nqspec == 0) dq(:,:) = dq(:,:) + dqdt(:,:) * deltsec
 
+!
+!     Apply physics filter to tendencies
+!
+      do jlev=1,NLEV
+        if (filterq == 1) then
+            if (nqspec == 1) sqt(:,jlev) = sqt(:,jlev) * sakfpp(:,jlev)
+        endif
+        if (filterd == 1) then
+            sdt(:,jlev) = sdt(:,jlev) * sakfpp(:,jlev)
+        endif
+        if (filterz == 1) then
+            szt(:,jlev) = szt(:,jlev) * sakfpp(:,jlev)
+        endif
+        if (filtert == 1) then
+            stt(:,jlev) = stt(:,jlev) * sakfpp(:,jlev)
+        endif
+      enddo
+ 
+      
+      
       return
       end
 
@@ -3450,15 +3519,15 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       sdp = sdp + delt2 * sdt
       if (nqspec == 1) sqp = sqp + delt2 * sqt
       
-!
-!     add spectral filters
-!
-      do jlev=1,NLEV
-        szp(:,jlev) = szp(:,jlev) * sakfpp(1:NSPP,jlev)
-        stp(:,jlev) = stp(:,jlev) * sakfpp(1:NSPP,jlev)
-        sdp(:,jlev) = sdp(:,jlev) * sakfpp(1:NSPP,jlev)
-        if (nqspec == 1) sqp(:,jlev) = sqp(:,jlev) * sakfpp(1:NSPP,jlev)
-      enddo
+! !
+! !     add spectral filters
+! !
+!       do jlev=1,NLEV
+!         szp(:,jlev) = szp(:,jlev) * sakfpp(1:NSPP,jlev)
+!         stp(:,jlev) = stp(:,jlev) * sakfpp(1:NSPP,jlev)
+!         sdp(:,jlev) = sdp(:,jlev) * sakfpp(1:NSPP,jlev)
+!         if (nqspec == 1) sqp(:,jlev) = sqp(:,jlev) * sakfpp(1:NSPP,jlev)
+!       enddo
 
 !     initial divergence damping for a smooth start of the model in case
 !     of steep orography (Mars) or unusual initial conditions

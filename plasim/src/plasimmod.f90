@@ -196,7 +196,12 @@
 !>>> AYP      
 
       integer :: nspfilter = 0 ! Which kind of filter to use: 0=default, 1=cesaro, 2=exponential
-
+      integer :: nfilterexp = 8 ! Exponent power to use for exponential filter
+      integer :: filterq = 0 ! Filter humidity? 
+      integer :: filterd = 0 ! Filter divergence?
+      integer :: filterz = 0 ! Filter vorticity?
+      integer :: filtert = 0 ! Filter temperature?
+      
 !     ***********************
 !     * Global Real Scalars *
 !     ***********************
@@ -237,6 +242,11 @@
       real ::  so(NESP)      = 0.0 ! Spectral Orography
       real ::  sr(NESP,NLEV) = 0.0 ! Spectral Restoration Temperature
 
+      real ::  ad(NESP,NLEV) = 0.0 ! Spectral Divergence
+      real ::  at(NESP,NLEV) = 0.0 ! Spectral Temperature
+      real ::  az(NESP,NLEV) = 0.0 ! Spectral Vorticity
+      real ::  aq(NESP,NLEV) = 0.0 ! Spectral Specific Humidity
+      
       real :: sdp(NSPP,NLEV) = 0.0 ! Spectral Divergence  Partial
       real :: stp(NSPP,NLEV) = 0.0 ! Spectral Temperature Partial
       real :: szp(NSPP,NLEV) = 0.0 ! Spectral Vorticity   Partial
