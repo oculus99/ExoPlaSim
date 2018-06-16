@@ -2415,8 +2415,8 @@ int CheckPlasimNamelist(void)
    }
 
    // Check # of latitudes for correct values (FFT requirements)
-
-        if (Latitudes >=  64) Latitudes =  64; // T42
+        if (Latitudes >=  96) Latitudes =  96; // T63
+   else if (Latitudes >=  64) Latitudes =  64; // T42
    else if (Latitudes >=  48) Latitudes =  48; // T31
    else if (Latitudes >=  32) Latitudes =  32; // T21
    else if (Latitudes >=   4) Latitudes =   4; // T2
@@ -4395,7 +4395,7 @@ void ChangeResolution(int NewRes)
    int i;
    struct SelStruct *Sel;
 
-   for (i=RES_T21 , Sel = SelRes ; i <= RES_T42; ++i , Sel = Sel->Next)
+   for (i=RES_T21 , Sel = SelRes ; i <= RES_T63; ++i , Sel = Sel->Next)
    {
       if (i == NewRes) Sel->iv = 1;
       else             Sel->iv = 0;
@@ -4410,7 +4410,7 @@ void UpdateResolution(void)
    struct SelStruct *Sel;
 
    if (SelRes)
-   for (i=RES_T21 , Sel = SelRes ; i <= RES_T42; ++i , Sel = Sel->Next)
+   for (i=RES_T21 , Sel = SelRes ; i <= RES_T63; ++i , Sel = Sel->Next)
    {
       if (Sel && Sel->iv == 1) Resolution = i;
    }
@@ -4751,7 +4751,7 @@ void OnMouseClick(void)
 
    if (SelRes)
    {
-      for (i = RES_T21 , Sel = SelRes ; i <= RES_T42 ; ++i , Sel = Sel->Next)
+      for (i = RES_T21 , Sel = SelRes ; i <= RES_T63 ; ++i , Sel = Sel->Next)
       if (HitBox(Sel))
       {
          ChangeResolution(i);

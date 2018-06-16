@@ -211,6 +211,8 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call mpbci(filterd)   ! Switch for filtering divergence
       call mpbci(filterz)   ! Switch for filtering vorticity
       call mpbci(filtert)   ! Switch for filtering temperature
+      call mpbcr(landhoskn0) ! n0 to use in lander-hoskins filter
+      call mpbci(filtertime) ! When to apply filters
       
       call mpbci(kick    ) ! add noise for kick > 0
       call mpbci(naqua   ) ! aqua planet switch
@@ -985,7 +987,8 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
                    , ndiagsp   , ndiagsp2d , ndiagsp3d , nspfilter      &
                    , ndl     , nentropy, nentro3d, neqsig  , nflux      &
                    , ngui    , nguidbg , nhdiff  , nhordif , nkits      &
-                   , noutput , filterq, filterd, filterz, filtert, nfilterexp   &
+                   , noutput , filterq, filterd, filterz, filtert       &
+                   , nfilterexp , filterkappa, filtertime, landhoskn0   &
                    , npackgp , npacksp , nperpetual        , nprhor     &
                    , nprint  , nqspec  , nrad    , nsela   , nsync      &
                    , ntime   , ntspd   , nveg    , nwpd    &
@@ -1017,6 +1020,15 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
        tdissd(:)=0.06 * day_24hr
       endif
 
+      if(NTRU==63) then
+       nhdiff=16
+       ndel(:)=4
+       tdissq(:)=0.1  * day_24hr
+       tdisst(:)=0.76 * day_24hr
+       tdissz(:)=0.3  * day_24hr
+       tdissd(:)=0.06 * day_24hr
+      endif
+       
 !
 !     read namelist
 !
@@ -1190,13 +1202,15 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       real (kind=8) radea,zakk
       real fn0
       
-      if (nspfilter .eq. 3) then
+      if (nspfilter .eq. 3 .and. landhoskn0 .eq. 0.0) then
         if(NTRU==21) then
-          fn0 = 17.0
+          landhoskn0 = 17.0
         else if (NTRU==42) then
-          fn0 = 34.0
+          landhoskn0 = 34.0
+        else if (NTRU==63) then
+          landhoskn0 = 43.0
         else
-          fn0 = 15.0
+          landhoskn0 = 0.75*NTRU
         endif
       endif
 
@@ -1308,9 +1322,9 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
             else if (nspfilter .eq. 1) then !Cesaro filter
               sakf(jr,jlev) = 1.0 - real(jn)/(NTRU+1)
             else if (nspfilter .eq. 2) then !Exponential filter
-              sakf(jr,jlev) = exp(-32.0*(real(jn)/NTRU)**nfilterexp)
+              sakf(jr,jlev) = exp(-filterkappa*(real(jn)/NTRU)**nfilterexp)
             else if (nspfilter .eq. 3) then !Lander-Hoskins physics filter
-              sakf(jr,jlev) = exp(-(real(jn)*real(jn+1)/(fn0*(fn0+1)))**2)
+              sakf(jr,jlev) = exp(-(real(jn)*real(jn+1)/(landhoskn0*(landhoskn0+1)))**2)
             else if (nspfilter .eq. 4) then !Riesz-2 filter
               sakf(jr,jlev) = (1.0 - real(jn)/(NTRU+1))**2
             else
@@ -2591,21 +2605,24 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       if (nqspec==1) aqm = sqp
       
       !Apply physics filter
-      do jlev = 1,NLEV
-        if (filterq == 1) then
-          if (nqspec == 1) aqm(:,jlev) = sakfpp(:,jlev) * aqm(:,jlev)
-        endif
-        if (filterd == 1) then
-          adm(:,jlev) = sakfpp(:,jlev) * adm(:,jlev)
-        endif
-        if (filterz == 1) then
-          azm(:,jlev) = sakfpp(:,jlev) * azm(:,jlev)
-        endif
-        if (filtert == 1) then
-          atm(:,jlev) = sakfpp(:,jlev) * atm(:,jlev)
-        endif
-      enddo 
-    
+      
+      if (filtertime .le. 0) then
+        do jlev = 1,NLEV
+          if (filterq == 1) then
+            if (nqspec == 1) aqm(:,jlev) = sakfpp(:,jlev) * aqm(:,jlev)
+          endif
+          if (filterd == 1) then
+            adm(:,jlev) = sakfpp(:,jlev) * adm(:,jlev)
+          endif
+          if (filterz == 1) then
+            azm(:,jlev) = sakfpp(:,jlev) * azm(:,jlev)
+          endif
+          if (filtert == 1) then
+            atm(:,jlev) = sakfpp(:,jlev) * atm(:,jlev)
+          endif
+        enddo 
+      endif
+      
 !     Gather from mpi processes for use in gridpointd    
     
       call mpgallsp(ad,adm,NLEV)
@@ -3068,21 +3085,23 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !
 !     Apply physics filter to tendencies
 !
-      do jlev=1,NLEV
-        if (filterq == 1) then
-            if (nqspec == 1) sqt(:,jlev) = sqt(:,jlev) * sakfpp(:,jlev)
-        endif
-        if (filterd == 1) then
-            sdt(:,jlev) = sdt(:,jlev) * sakfpp(:,jlev)
-        endif
-        if (filterz == 1) then
-            szt(:,jlev) = szt(:,jlev) * sakfpp(:,jlev)
-        endif
-        if (filtert == 1) then
-            stt(:,jlev) = stt(:,jlev) * sakfpp(:,jlev)
-        endif
-      enddo
- 
+
+      if (filtertime .ge. 0) then
+        do jlev=1,NLEV
+          if (filterq == 1) then
+              if (nqspec == 1) sqt(:,jlev) = sqt(:,jlev) * sakfpp(:,jlev)
+          endif
+          if (filterd == 1) then
+              sdt(:,jlev) = sdt(:,jlev) * sakfpp(:,jlev)
+          endif
+          if (filterz == 1) then
+              szt(:,jlev) = szt(:,jlev) * sakfpp(:,jlev)
+          endif
+          if (filtert == 1) then
+              stt(:,jlev) = stt(:,jlev) * sakfpp(:,jlev)
+          endif
+        enddo
+      endif
       
       
       return

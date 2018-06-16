@@ -195,12 +195,16 @@
       integer :: nglspec = 0
 !>>> AYP      
 
-      integer :: nspfilter = 0 ! Which kind of filter to use: 0=default, 1=cesaro, 2=exponential
+      integer :: nspfilter = 0 ! Which kind of filter to use: 0=default, 1=cesaro, 2=exponential,
+                               !                              3=lander-hoskins, 4=Riesz-2
       integer :: nfilterexp = 8 ! Exponent power to use for exponential filter
+      real :: filterkappa = 32.0 ! Coefficient for exponential filter
       integer :: filterq = 0 ! Filter humidity? 
       integer :: filterd = 0 ! Filter divergence?
       integer :: filterz = 0 ! Filter vorticity?
       integer :: filtert = 0 ! Filter temperature?
+      integer :: filtertime = 0 ! -1 = filter before physics, 1 = filter after physics, 0 = both
+      real :: landhoskn0 = 0.0 ! Lander-Hoskins n0 to use.
       
 !     ***********************
 !     * Global Real Scalars *

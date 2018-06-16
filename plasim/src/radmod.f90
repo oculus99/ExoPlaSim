@@ -1411,6 +1411,10 @@
 !
 !     make upward R
 !
+
+! Currently: we use the same albedo for both spectral ranges.
+
+
        zra1s(:)=dalb(:)
        zra2s(:)=dalb(:)
 !
