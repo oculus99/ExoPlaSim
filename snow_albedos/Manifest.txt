@@ -1,0 +1,10 @@
+water.snow.mediumgranular.medium.all.medgran_snw_.jhu.becknic.spectrum.txt 
+
+water.snow.finegranular.fine.all.fine_snw_.jhu.becknic.spectrum.txt 
+
+water.snow.coarsegranular.coarse.all.coarse_snw_.jhu.becknic.spectrum.txt 
+
+water.ice.none.solid.all.ice_dat_.jhu.becknic.spectrum.txt 
+
+Manifest.txt 
+
