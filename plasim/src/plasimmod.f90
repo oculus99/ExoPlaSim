@@ -334,6 +334,9 @@
 !     *************
 
       real :: dalb(NHOR)               ! albedo
+      real :: dalb1(NHOR)              ! albedo < 0.75 microns
+      real :: dalb2(NHOR)              ! albedo > 0.75 microns
+      real :: dsnowalb(2) = 0.8           ! Container for storing snow albedos
       real :: dswfl(NHOR,NLEP)         ! net solar radiation
       real :: dlwfl(NHOR,NLEP)         ! net thermal radiation
       real :: dflux(NHOR,NLEP)         ! net radiation (SW + LW)

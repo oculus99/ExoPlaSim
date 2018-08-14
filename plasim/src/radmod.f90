@@ -131,6 +131,14 @@
 !     SUBROUTINE SOLARINI
 !     ===================
 
+!
+!     Spectral snow reflectance sourced from the ECOSTRESS spectral library (JPL,JHU,USGS):
+!
+! Meerdink, S. K., Hook, S. J., Abbott, E.A., & Roberts, D.A. (in prep). 
+!   The ECOSTRESS Spectral Library 1.0.
+! Baldridge, A. M., S.J. Hook, C.I. Grove and G. Rivera, 2009.. 
+!   The ASTER Spectral Library Version 2.0. Remote Sensing of Environment, vol 113, pp. 711-715
+!
       subroutine solarini
       use radmod
 
@@ -145,9 +153,12 @@
       real :: wvm2(1024) !Wavelength in microns starting at 0.75 microns
       real :: bb1(1024) !Planck function for x<0.75 microns
       real :: bb2(1024) !Planck function for x>0.75 microns
+      real :: bb3(965) !Planck function for albedo wavelengths
       
       real dl1,dl2,hinge,const1,const2,z1,z2,znet,wmin,lwmin
       integer k
+      
+      real :: snowalbedos(965) = 0.0 !Combined snow spectral albedos
       
       real :: wavelengths(965) = (/0.3400,0.3500,0.3600,0.3700,0.3800,0.3900,0.4000,0.4100,0.4200,          &
      &                     0.4300,0.4400,0.4500,0.4600,0.4700,0.4800,0.4900,0.5000,0.5100,          &
@@ -587,7 +598,9 @@
      
      
       if (mypid == NROOT) then
-      
+        
+        !snowalbedos(:) = 0.25*(fsnowalb(:)+2.0*msnowalb(:)+csnowalb(:)) !assume mostly med-grain
+        
         wmin = const/(starbbtemp*36.841361) !Wavelength where exponential term is <=1.0e-16
         lwmin = log10(wmin)
       
@@ -613,6 +626,20 @@
 !           write(nud,*) wv1(k),bb1(k),wv2(k),bb2(k)
         enddo      !The scaling and units don't actually matter, because we're going to normalize
         
+        do k=1,965 !Compute the Planck function for the wavelengths at which we have albedo data
+          bb3(k) = 1.0/(wavelengths(k))**5 * 1.0/(exp(1.0e6*const2/wavelengths(k))-1)
+        enddo
+        a1 = 0.0
+        a2 = 0.0
+        do k=1,41 !Compute insolation-weighted albedo below 0.75 microns
+          a1 = a1 + 0.5*(bb3(k)*fsnowalb(k)+bb3(k+1)*fsnowalb(k+1))* &
+     &              1.0e-6*(wavelengths(k+1)-wavelengths(k))
+        enddo
+        do k=42,964 !Compute insolation-weighted albedo above 0.75 microns
+          a2 = a2 + 0.5*(bb3(k)*fsnowalb(k)+bb3(k+1)*fsnowalb(k+1)))* &
+     &              1.0e-6*(wavelengths(k+1)-wavelengths(k))
+        enddo
+        
         z1 = 0.0
         z2 = 0.0
         do k=1,1023    !Do a trapezoidal integration above and below 0.75 microns
@@ -621,6 +648,8 @@
         enddo
         z1 = z1 + 0.5*(bb1(1024)+bb2(1))*(wv2(1)-wv1(1024))
         
+        a1 = 0.01*a1/z1 !Percent -> Decimal; normalization
+        a2 = 0.01*a2/z2
         
         znet = z1+z2
         
@@ -636,6 +665,13 @@
         zsolars(1) = zsolar1
         zsolars(2) = zsolar2
         
+        dsnowalb(1) = a1
+        dsnowalb(2) = a2
+        
+        write(nud,*) "Snow albedo below 0.75 microns:",dsnowalb(1)
+        write(nud,*) "Snow albedo above 0.75 microns:",dsnowalb(2)
+        write(nud,*) "Overall snow albedo:",z1*dsnowalb(1)+z2*dsnowalb(2)
+        
 !         call put_restart_array("zsolars",zsolars,2,2,1)
         
       endif
@@ -645,8 +681,10 @@
       call mpbcrn(zsolars,2)
       call mpbcr(zsolar1)
       call mpbcr(zsolar2)
+      call mpbcrn(dsnowalb,2)
       
       call mpputgp('zsolars',zsolars,2,1)
+      call mpputgp('dsnowalb',dsnowalb,2,1)
       
       end subroutine solarini
       
@@ -847,15 +885,19 @@
       if (nstartemp > 0) then
         if (nrestart > 0.) then
           call mpgetgp('zsolars',zsolars,2,1)
+          call mpgetgp('dsnowalb',dsnowalb,2,1)
           if (mypid == NROOT) then
 !             call get_restart_array("zsolars",zsolars,2,2,1)
             zsolar1 = zsolars(1)
             zsolar2 = zsolars(2)
             write(nud,*) "Read zsolar1 from restart: ",zsolar1
             write(nud,*) "Read zsolar2 from restart: ",zsolar2
+            write(nud,*) "Read snow albedo <0.75 um from restart: ",dsnowalb(1)
+            write(nud,*) "Read snow albedo >0.75 um from restart: ",dsnowalb(2)
           endif
           call mpbcr(zsolar1)
           call mpbcr(zsolar2)
+          call mpbcrn(dsnowalb)
 !           call mpputgp(
         else
           call solarini 
@@ -863,6 +905,7 @@
       else
         call mpbcr(zsolar1)
         call mpbcr(zsolar2)
+        call mpbcrn(dsnowalb)
       endif
 !
 !     determine orbital parameters
@@ -953,7 +996,8 @@
       real, allocatable :: zprf11(:,:)
       real, allocatable :: zprf12(:,:)
       real, allocatable :: zcc(:,:)
-      real, allocatable :: zalb(:)
+      real, allocatable :: zalb1(:)
+      real, allocatable :: zalb2(:)
       real, allocatable :: zdtdte(:,:)
 !
 !     cpu time estimates
@@ -987,9 +1031,11 @@
 
       if(ndiagcf > 0) then
        allocate(zcc(NHOR,NLEP))
-       allocate(zalb(NHOR))
+       allocate(zalb1(NHOR))
+       allocate(zalb2(NHOR))
        zcc(:,:)=dcc(:,:)
-       zalb(:)=dalb(:)
+       zalb1(:) = dalb1(:)
+       zalb2(:) = dalb2(:)
        dcc(:,:)=0.
        if(nswr==1) call swr
        dclforc(:,1)=dswfl(:,NLEP)
@@ -997,8 +1043,10 @@
        dclforc(:,5)=dfu(:,1)
        dclforc(:,6)=dfu(:,NLEP)
        dcc(:,:)=zcc(:,:)
-       dalb(:)=zalb(:)
-       deallocate(zalb)
+       dalb1(:) = zalb1(:)
+       dalb2(:) = zalb2(:)
+       deallocate(zalb1)
+       deallocate(zalb2)
       end if
 
 !
@@ -1006,6 +1054,9 @@
 !
 
       if(ntime == 1) call mksecond(zsec1,0.)
+      
+      
+      
       if(nswr==1) call swr
       if(ntime == 1) then
        call mksecond(zsec1,zsec1)
@@ -1854,15 +1905,23 @@
 ! Currently: we use the same albedo for both spectral ranges.
 
 
-       zra1s(:)=dalb(:)
-       zra2s(:)=dalb(:)
+       zra1s(:)=dalb1(:)
+       zra2s(:)=dalb2(:)
 !
 !      set albedo for the direct beam (for ocean use ECHAM3 param)
 !
-       dalb(:)=dls(:)*dalb(:)+(1.-dls(:))*dicec(:)*dalb(:)              &
+       dalb1(:)=dls(:)*dalb1(:)+(1.-dls(:))*dicec(:)*dalb1(:)              &
      &        +(1.-dls(:))*(1.-dicec(:))*AMIN1(0.05/(zmu0(:)+0.15),0.15)
-       zra1(:)=dalb(:)
-       zra2(:)=dalb(:)
+       dalb2(:)=dls(:)*dalb2(:)+(1.-dls(:))*dicec(:)*dalb2(:)              &
+     &        +(1.-dls(:))*(1.-dicec(:))*AMIN1(0.05/(zmu0(:)+0.15),0.15)
+     
+       dalb(:) = zsolars(1)*dalb1(:) + zsolars(2)*dalb2(:)
+     
+       zra1(:)=dalb1(:)
+       zra2(:)=dalb2(:)
+       
+! Ice-free ocean albedo is min(0.05/(phi+0.15), 0.15)--reflection and scattering is higher at low phi
+       
       endwhere
       do jlev=NLEV,1,-1
        where(losun(:))

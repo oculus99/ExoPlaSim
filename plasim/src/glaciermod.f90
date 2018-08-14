@@ -32,6 +32,8 @@
       integer :: nglacier = 1 ! 1 = implement glaciation, 0 = ignore
       real :: glacelim = 2.0 ! Minimum snow depth in meters liquid water equivalent that has to be maintained
                                  ! year-round to convert the gridpoint to a glacier.
+      real :: icesheeth = -1.0 ! Initial uniform ice sheet height in liquid water meter equivalent.
+                               ! Ignored if negative.
       
 !
 !     global arrays
@@ -56,7 +58,7 @@
       subroutine glacierprep
       use glaciermod
 
-      namelist/glacier_nl/nglacier,glacelim
+      namelist/glacier_nl/nglacier,glacelim,icesheeth
       
       if (mypid==NROOT) then
          open(23,file=glacier_namelist)
@@ -72,6 +74,7 @@
       
       call mpbci(nglacier)
       call mpbcr(glacelim)
+      call mpbcr(icesheeth)
       
       if (mypid==NROOT) nglspec = nglacier
       
@@ -101,6 +104,12 @@
         call mpsurfgp('doro'    ,doro    ,NHOR,1)
         groundoro(:) = doro(:)
         glacieroro(:) = 0.0
+        if (icesheeth >= 0.0 .and. nglacier .eq. 1) then
+          where (dls(:) > 0.5)
+            dglac = 1.0
+            dsnowz = icesheeth
+          endwhere
+        endif
       endif
       
       if (nglacier .eq. 1) then

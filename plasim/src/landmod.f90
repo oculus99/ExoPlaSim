@@ -21,12 +21,22 @@
       integer :: newsurf  = 0     ! (dtcl,dwcl) 1: update from file, 2:reset 
       integer :: nwatcini = 0     ! (0/1) initialize water content of soil
       real    :: albland  = 0.2   ! albedo for land
-      real    :: albsmin  = 0.4   ! min. albedo for snow
-      real    :: albsmax  = 0.8   ! max. albedo for snow
-      real    :: albsminf = 0.3   ! min. albedo for snow (with forest)
-      real    :: albsmaxf = 0.4   ! max. albedo for snow (with forest)
-      real    :: albgmin  = 0.6   ! min. albedo for glaciers
-      real    :: albgmax  = 0.8   ! max. albedo for glaciers
+      
+                   ! lambda < 0.75 microns
+      real    :: albsmin1  = 0.4   ! min. albedo for snow
+      real    :: albsmax1  = 0.8   ! max. albedo for snow
+      real    :: albsminf1 = 0.3   ! min. albedo for snow (with forest)
+      real    :: albsmaxf1 = 0.4   ! max. albedo for snow (with forest)
+      real    :: albgmin1  = 0.6   ! min. albedo for glaciers
+      real    :: albgmax1  = 0.8   ! max. albedo for glaciers
+                   ! lambda > 0.75 microns
+      real    :: albsmin2  = 0.4   ! min. albedo for snow
+      real    :: albsmax2  = 0.8   ! max. albedo for snow
+      real    :: albsminf2 = 0.3   ! min. albedo for snow (with forest)
+      real    :: albsmaxf2 = 0.4   ! max. albedo for snow (with forest)
+      real    :: albgmin2  = 0.6   ! min. albedo for glaciers
+      real    :: albgmax2  = 0.8   ! max. albedo for glaciers
+      
       real    :: dz0land  = 2.0   ! roughness length land
       real    :: drhsland = 0.25  ! wetness factor land
       real    :: drhsfull = 0.4   ! threshold above which drhs=1 [frac. of wsmax]
@@ -166,17 +176,43 @@
 
       if (wsmax < 0.0) wsmax = 0.0 ! Catch user error
 
+      if (mypid==NROOT) then
+        
+       albsmax1 = dsnowalb(1)
+       albgmax1 = dsnowalb(1)
+       albsmax2 = dsnowalb(2)
+       albgmax2 = dsnowalb(2)
+       albsmaxf1 = 0.5*albsmax1
+       albsmaxf2 = 0.5*albsmax2
+       albsmin1 = 0.5*albsmax1
+       albsmin2 = 0.5*albsmax2
+       albgmin1 = 0.75*albsmax1
+       albgmin2 = 0.75*albsmax2
+       albsminf1 = 0.75*albsmaxf1
+       albsminf2 = 0.75*albsmaxf2
+       
+      endif
+      
       call mpbci(nlandt)
       call mpbci(nlandw)
       call mpbci(newsurf)
       call mpbci(nwatcini)
       call mpbcr(albland)
-      call mpbcr(albsmin)
-      call mpbcr(albsmax)
-      call mpbcr(albsminf)
-      call mpbcr(albsmaxf)
-      call mpbcr(albgmin)
-      call mpbcr(albgmax)
+      
+      call mpbcr(albsmin1)
+      call mpbcr(albsmax1)
+      call mpbcr(albsminf1)
+      call mpbcr(albsmaxf1)
+      call mpbcr(albgmin1)
+      call mpbcr(albgmax1)
+      
+      call mpbcr(albsmin2)
+      call mpbcr(albsmax2)
+      call mpbcr(albsminf2)
+      call mpbcr(albsmaxf2)
+      call mpbcr(albgmin2)
+      call mpbcr(albgmax2)
+      
       call mpbcr(dz0land)
       call mpbcr(drhsland)
       call mpbcr(drhsfull)
@@ -280,6 +316,20 @@
 !
 !*    set other surface variables
 !
+
+! This is where snow/ice albedo comes in, at least on land. On land:
+! amax = f(forest,albmax) <- simple weighted average based on forest cover
+! amin = f(forest,albmin) 
+! zalb = (amax-amin)*(t-263.16)/(273.15-263.16)
+! zalbsnow = max(amin,min(amax,amax-zalb))
+! alb = albcl + (zalbsnow - albcl)*dsnow/(dsnow+0.01)
+!
+! So if dsnow is nonzero, alb is zalbsnow, otherwise albcl which came from getalb.
+! 
+! zalbsnow is amin at the lowest, or as high as the lesser of amax and amax-zalb.
+! zalb>0 if and only if t>263.16. So the snow gets brighter as you approach -10 C. 
+
+       
        do jhor=1,NHOR
         if(dls(jhor) > 0.0) then
          dtsm(jhor)=dts(jhor)
@@ -288,15 +338,22 @@
          dqs(jhor)=dqs(jhor)/(1.-(1./rdbrv-1.)*dqs(jhor))
          dsnow(jhor)=dsnowz(jhor)
          if(dsnow(jhor) > 0.) then
-          zalbmax=dforest(jhor)*albsmaxf+(1.-dforest(jhor))*albsmax
-          zalbmin=dforest(jhor)*albsminf+(1.-dforest(jhor))*albsmin
-          zdalb=(zalbmax-zalbmin)*(dts(jhor)-263.16)/(tmelt-263.16)
-          zalbsnow=MAX(zalbmin,MIN(zalbmax,zalbmax-zdalb))
-          dalb(jhor)=dalbclim(jhor)                                     &
-     &        +(zalbsnow-dalbclim(jhor))*dsnow(jhor)/(dsnow(jhor)+0.01)
+          zalbmax1=dforest(jhor)*albsmaxf1+(1.-dforest(jhor))*albsmax1
+          zalbmin1=dforest(jhor)*albsminf1+(1.-dforest(jhor))*albsmin1
+          zalbmax2=dforest(jhor)*albsmaxf2+(1.-dforest(jhor))*albsmax2
+          zalbmin2=dforest(jhor)*albsminf2+(1.-dforest(jhor))*albsmin2
+          zdalb1=(zalbmax1-zalbmin1)*(dts(jhor)-263.16)/(tmelt-263.16)
+          zdalb2=(zalbmax2-zalbmin2)*(dts(jhor)-263.16)/(tmelt-263.16)
+          zalbsnow1=MAX(zalbmin1,MIN(zalbmax1,zalbmax1-zdalb1))
+          zalbsnow2=MAX(zalbmin2,MIN(zalbmax2,zalbmax2-zdalb2))
+          dalb1(jhor)=dalbclim(jhor)                                     &
+     &        +(zalbsnow1-dalbclim(jhor))*dsnow(jhor)/(dsnow(jhor)+0.01)
+          dalb2(jhor)=dalbclim(jhor)                                     &
+     &        +(zalbsnow2-dalbclim(jhor))*dsnow(jhor)/(dsnow(jhor)+0.01)
           drhs(jhor)=1.
          else
-          dalb(jhor)=dalbclim(jhor)
+          dalb1(jhor)=dalbclim(jhor)
+          dalb2(jhor)=dalbclim(jhor)
           if (dwmax(jhor) > 0.0)                                        &
           drhs(jhor)=AMIN1(1.,dwatc(jhor)/(drhsfull*dwmax(jhor)))
          endif
@@ -317,8 +374,10 @@
          if(dglac(jhor) > 0.5) then
           dsnowz(jhor)=AMAX1(dsmax,0.)
           dsnow(jhor)=dsnowz(jhor)
-          zdalb=(albgmax-albgmin)*(dts(jhor)-263.16)/(tmelt-263.16)
-          dalb(jhor)=MAX(albgmin,MIN(albgmax,albgmax-zdalb))
+          zdalb1=(albgmax1-albgmin1)*(dts(jhor)-263.16)/(tmelt-263.16)
+          zdalb2=(albgmax2-albgmin2)*(dts(jhor)-263.16)/(tmelt-263.16)
+          dalb1(jhor)=MAX(albgmin1,MIN(albgmax1,albgmax1-zdalb1))
+          dalb2(jhor)=MAX(albgmin2,MIN(albgmax2,albgmax2-zdalb2))
           drhs(jhor)=1.0
          end if
 
@@ -424,15 +483,22 @@
         dqs(jhor)=dqs(jhor)/(1.-(1./rdbrv-1.)*dqs(jhor))
         dsnow(jhor)=dsnowz(jhor)
         if(dsnow(jhor) > 0.) then
-         zalbmax=dforest(jhor)*albsmaxf+(1.-dforest(jhor))*albsmax
-         zalbmin=dforest(jhor)*albsminf+(1.-dforest(jhor))*albsmin
-         zdalb=(zalbmax-zalbmin)*(dts(jhor)-263.16)/(tmelt-263.16)
-         zalbsnow=MAX(zalbmin,MIN(zalbmax,zalbmax-zdalb))
-         dalb(jhor)=dalbclim(jhor)                                     &
-     &       +(zalbsnow-dalbclim(jhor))*dsnow(jhor)/(dsnow(jhor)+0.01)
+         zalbmax1=dforest(jhor)*albsmaxf1+(1.-dforest(jhor))*albsmax1
+         zalbmin1=dforest(jhor)*albsminf1+(1.-dforest(jhor))*albsmin1
+         zdalb1=(zalbmax1-zalbmin1)*(dts(jhor)-263.16)/(tmelt-263.16)
+         zalbsnow1=MAX(zalbmin1,MIN(zalbmax1,zalbmax1-zdalb1))
+         dalb1(jhor)=dalbclim(jhor)                                     &
+     &       +(zalbsnow1-dalbclim(jhor))*dsnow(jhor)/(dsnow(jhor)+0.01)
+         zalbmax2=dforest(jhor)*albsmaxf2+(1.-dforest(jhor))*albsmax2
+         zalbmin2=dforest(jhor)*albsminf2+(1.-dforest(jhor))*albsmin2
+         zdalb2=(zalbmax2-zalbmin2)*(dts(jhor)-263.16)/(tmelt-263.16)
+         zalbsnow2=MAX(zalbmin2,MIN(zalbmax2,zalbmax2-zdalb2))
+         dalb2(jhor)=dalbclim(jhor)                                     &
+     &       +(zalbsnow2-dalbclim(jhor))*dsnow(jhor)/(dsnow(jhor)+0.01)
          drhs(jhor)=1.
         else
-         dalb(jhor)=dalbclim(jhor)
+         dalb1(jhor)=dalbclim(jhor)
+         dalb2(jhor)=dalbclim(jhor)
          if (dwmax(jhor) > 0.0)                                        &
          drhs(jhor)=AMIN1(1., dwatc(jhor)/(drhsfull *dwmax(jhor)))
         endif
@@ -468,8 +534,10 @@
 !
 
       where(dglac(:) > 0.5 .and. dls(:) > 0.0)
-       dalb(:)=MAX(albgmin,MIN(albgmax                                  &
-     &  ,albgmax-(albgmax-albgmin)*(dts(:)-263.16)/(tmelt-263.16)))
+       dalb1(:)=MAX(albgmin1,MIN(albgmax1                                  &
+     &  ,albgmax1-(albgmax1-albgmin1)*(dts(:)-263.16)/(tmelt-263.16)))
+       dalb2(:)=MAX(albgmin2,MIN(albgmax2                                  &
+     &  ,albgmax2-(albgmax2-albgmin2)*(dts(:)-263.16)/(tmelt-263.16)))
        drhs(:)=1.0
       end where
 

@@ -11,7 +11,10 @@
       integer :: ncpl_atmos_ice = 1     ! ice-atmosphere coupling timesteps
 !
       real    :: albsea   = 0.069 ! albedo for free ocean
-      real    :: albice   = 0.7   ! max. albedo for sea ice
+      real    :: albice1   = 0.7   ! max. albedo for sea ice
+      real    :: albice2   = 0.7   ! max. albedo for sea ice
+      real    :: albicemin1   = 0.5   ! min. albedo for sea ice
+      real    :: albicemin2   = 0.5   ! min. albedo for sea ice
       real    :: dz0sea   = 1.5E-5! roughness length sea
       real    :: dz0ice   = 0.001 !  "          "    ice
       real    :: drhssea  = 1.    ! wetness factor sea
@@ -81,9 +84,19 @@
          write(nud,seamod_nl)
          close(12)
       end if
+      
+      if (mypid==NROOT) then
+        albice1 = 0.875*dalbsnow(1)
+        albice2 = 0.875*dalbsnow(2)
+        albicemin1 = 0.625*dalbsnow(1)
+        albicemin2 = 0.625*dalbsnow(2)
+      endif
 !
       call mpbcr(albsea)
-      call mpbcr(albice)
+      call mpbcr(albice1)
+      call mpbcr(albice2)
+      call mpbcr(albicemin1)
+      call mpbcr(albicemin2)
       call mpbcr(dz0sea)
       call mpbcr(dz0ice)
       call mpbcr(drhssea)
@@ -139,8 +152,10 @@
        dqs(:)  = dqs(:)/(1.-(1./rdbrv-1.)*dqs(:))
        dq(:,NLEP) = dqs(:)
        drhs(:)=drhssea*(1.-dicec(:))+drhsice*dicec(:)
-       dalb(:)=albsea*(1.-dicec(:))   &
-     &         +dicec(:)*AMIN1(albice,0.5+0.025*(273.-dts(:)))
+       dalb1(:)=albsea*(1.-dicec(:))                                     &
+     &           +dicec(:)*AMIN1(albice1,albicemin1+0.125*(albice1-albicemin1)*(273.-dts(:)))
+       dalb2(:)=albsea*(1.-dicec(:))                                     &
+     &           +dicec(:)*AMIN1(albice2,albicemin2+0.125*(albice2-albicemin2)*(273.-dts(:)))
        dz0(:)=dz0sea*(1.-dicec(:))+dz0ice*dicec(:)
       endwhere
       endif
@@ -247,8 +262,10 @@
        zz0(:)=AMAX1(zz0(:),dz0sea)
 !
        drhs(:)=drhssea*(1.-dicec(:))+drhsice*dicec(:)
-       dalb(:)=albsea*(1.-dicec(:))                                     &
-     &           +dicec(:)*AMIN1(albice,0.5+0.025*(273.-dts(:)))
+       dalb1(:)=albsea*(1.-dicec(:))                                     &
+     &           +dicec(:)*AMIN1(albice1,albicemin1+0.125*(albice1-albicemin1)*(273.-dts(:)))
+       dalb2(:)=albsea*(1.-dicec(:))                                     &
+     &           +dicec(:)*AMIN1(albice2,albicemin2+0.125*(albice2-albicemin2)*(273.-dts(:)))
        dz0(:)=zz0(:)*(1.-dicec(:))+dz0ice*dicec(:)
       endwhere
 !
