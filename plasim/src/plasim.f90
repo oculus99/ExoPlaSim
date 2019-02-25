@@ -301,6 +301,8 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call mpbcr(mvelp)
       call mpbcr(plavor)
       call mpbcr(dampsp)
+      
+      call mpbcr(anom0)
 
       call mpbcin(ndel  ,NLEV) ! ndel
       call mpbcin(ndl   ,NLEV)
@@ -666,6 +668,13 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !     close efficiency diagnostic file
 !
       if(ndheat > 1 .and. mypid == NROOT) close(9)
+      
+!
+!*    finish radiation
+!
+
+      call radstop      
+      
 !
 !     write restart file
 !
@@ -678,6 +687,8 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
          call put_restart_integer('nlev'    ,NLEV    )
          call put_restart_integer('nrsp'    ,NRSP    )
 
+         call put_restart_float('anom0'     ,anom0   )
+         
 !        Save current random number generator seed
 
          call random_seed(get=meed)
@@ -765,12 +776,6 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !
 
       call fluxstop
-
-!
-!*    finish radiation
-!
-
-      call radstop
 
 !
 !*    finish large scale and convective rain and clouds
@@ -1020,7 +1025,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
                    , syncstr , synctime                                 &
                    , dtep    , dtns    , dtrop   , dttrp                &
                    , tdissd  , tdissz  , tdisst  , tdissq  , tgr        &
-                   , psurf   , ptop                                     &
+                   , psurf   , ptop    , anom0                          &
                    , restim  , t0      , tfrc                           &
                    , sigh    , nenergy , nener3d , nsponge , dampsp
 !
@@ -1048,6 +1053,10 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       open(11,file=plasim_namelist,form='formatted')
       read (11,plasim_nl)
 
+      anom0 = anom0 * PI/180.0 !Convert to radians
+      
+      if (nrestart > 0) call get_restart_float('anom0',anom0)
+      
       if ((ndesert == 1) .and. (naqua == 1)) then !If both toggled, turn off both
         naqua = 0
         ndesert = 0
@@ -1070,9 +1079,12 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !          if (n_days_per_year == 365) n_days_per_year = 360
 !          solar_day = solar_day / rotspd
 !          solar_day = (n_days_per_year-1.0)*sidereal_day/n_days_per_year
-         sidereal_day = day_24hr / rotspd
+         sidereal_day = 86164.0916 / rotspd
 !          n_days_per_year = n_days_per_year * rotspd
 !          sidereal_day =(n_days_per_year*day_24hr)/(n_days_per_year+1.0)
+
+         n_days_per_year = nint(360 * rotspd)
+
          if (n_days_per_year /= 1) then
            solar_day = sidereal_day * n_days_per_year/(n_days_per_year-1)
          else

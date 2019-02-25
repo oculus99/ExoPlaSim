@@ -589,6 +589,7 @@
       real :: eccen  = 0.0             ! Eccentricity of Orbit
       real :: obliq  = 0.0             ! Obliquity of Orbit
       real :: mvelp  = 0.0             ! Longitude of moving vernal equinox
+      real :: anom0  = 0.0             ! Initial mean anomaly
 
 !     ******************************************
 !     * GUI (Graphical User Interface for X11) *

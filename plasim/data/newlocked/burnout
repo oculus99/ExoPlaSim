@@ -6,7 +6,7 @@
 *        New: option <-g> writes Grads ctl for service plotting        *
 *            New: comments (#) are allowed in namelist file            *
 ************************************************************************
-*          Run started at Sat Feb 23 00:51:09 2019 local time          *
+*          Run started at Sun Feb 24 23:23:38 2019 local time          *
 ************************************************************************
 *                 Found PUMA/Planet Simulator data set                 *
 *                   Running on little endian machine                   *
@@ -126,32 +126,32 @@
 * Level    9 =   0.924100                                              *
 * Level   10 =   0.983300                                              *
 * -------------------------------------------------------------------- *
-*  Input File: MOST.001                                                *
-* Output File: MOST.001.nc                                             *
+*  Input File: MOST.009                                                *
+* Output File: MOST.009.nc                                             *
 * -------------------------------------------------------------------- *
 * Vertical   Type = Sigma                [S]                           *
 * Horizontal Type = Gaussian Grid        [G]                           *
 * -------------------------------------------------------------------- *
-* Processed Month  1   Year    1  (Mean of   7 Terms)                  *
-* Processed Month  2   Year    1  (Mean of  31 Terms)                  *
-* Processed Month  3   Year    1  (Mean of  31 Terms)                  *
-* Processed Month  4   Year    1  (Mean of  31 Terms)                  *
-* Processed Month  5   Year    1  (Mean of  31 Terms)                  *
-* Processed Month  6   Year    1  (Mean of  31 Terms)                  *
-* Processed Month  7   Year    1  (Mean of  31 Terms)                  *
-* Processed Month  8   Year    1  (Mean of  31 Terms)                  *
-* Processed Month  9   Year    1  (Mean of  31 Terms)                  *
-* Processed Month 10   Year    1  (Mean of  31 Terms)                  *
-* Processed Month 11   Year    1  (Mean of  31 Terms)                  *
-* Processed Month 12   Year    1  (Mean of  31 Terms)                  *
+* Processed Month  1   Year    7  (Mean of  31 Terms)                  *
+* Processed Month  2   Year    7  (Mean of  31 Terms)                  *
+* Processed Month  3   Year    7  (Mean of  31 Terms)                  *
+* Processed Month  4   Year    7  (Mean of  31 Terms)                  *
+* Processed Month  5   Year    7  (Mean of  31 Terms)                  *
+* Processed Month  6   Year    7  (Mean of  31 Terms)                  *
+* Processed Month  7   Year    7  (Mean of  31 Terms)                  *
+* Processed Month  8   Year    7  (Mean of  30 Terms)                  *
+* Processed Month  9   Year    7  (Mean of  31 Terms)                  *
+* Processed Month 10   Year    7  (Mean of  31 Terms)                  *
+* Processed Month 11   Year    7  (Mean of  31 Terms)                  *
+* Processed Month 12   Year    7  (Mean of  31 Terms)                  *
 ************************************************************************
-*                        Using 360 day calendar                        *
-*                     Data interval =   6.53 hours                     *
+*                        Using 359 day calendar                        *
+*                     Data interval =  11.63 hours                     *
 ************************************************************************
-* User     time:      1.533 seconds                                    *
-* System   time:      0.080 seconds                                    *
-* Total    time:      1.613 seconds                                    *
+* User     time:      1.414 seconds                                    *
+* System   time:      0.084 seconds                                    *
+* Total    time:      1.498 seconds                                    *
 * Memory  usage:      0.019 MBytes                                     *
-* Page reclaims:       6379 pages                                      *
+* Page reclaims:       6376 pages                                      *
 * Disk    Write:      37488 blocks                                     *
 ************************************************************************

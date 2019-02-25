@@ -702,6 +702,8 @@
 
       subroutine radstop
       use radmod
+      
+      real ma, zmins
 !
 !     finalizes radiation
 !     this *sub* is called by PUMA (PUMA-interface)
@@ -712,6 +714,9 @@
 !
 !     no PUMA variables are used
 !
+      call meananom(zmins,ma)
+      anom0 = ma !Record current mean anomaly as new initial anomaly
+
       if(mypid == NROOT .and. ntime == 1) then
        write(nud,*)'******************************************'
        write(nud,*)' CPU usage in RADSTEP (ROOT process only):  '
@@ -723,13 +728,76 @@
 !
       return
       end subroutine radstop
+      
+!     ===================
+!     SUBROUTINE MEANANOM
+!     ===================
 
+      subroutine meananom(zmins,manom)
+      use radmod
+      
+      real :: manom
+      real thyng, sidyear, orbfrac, zmins
+       
+      sidyear = sidereal_year/60.0 !
+      
+      orbfrac = mod(mpstep*nstep/sidyear,1.0)
+
+      zmins = mpstep*nstep
+      
+      if (nfixed==1) zmins = 1440.0 * (1.0 - (fixedlon/360.))
+      
+      thyng = mvelpp-PI
+      manom = (TWOPI/sidyear)*zmins - thyng  !Mean anomaly 
+      manom = manom + anom0*PI/180.0 !We start at anom0.         
+      manom = mod(manom,TWOPI)       
+      
+      return
+      end subroutine meananom
+      
+      
+!     ========================
+!     SUBROUTINE NEWTONRAPHSON
+!     ========================
+
+      subroutine newtonraphson(meananom,eccen,ee)
+      
+      real meananom
+      real eccen
+      real ee
+      real e0
+      integer ict
+      logical thresh
+      
+      if (eccen .lt. 0.5) then
+        ee = meananom
+      else
+        ee = 0.
+      endif
+      
+      thresh = .false.
+      
+      ict = 0
+      
+      do while (thresh .neqv. .true.)
+        e0 = ee
+        ee = ee - (ee-(meananom+eccen*sin(ee)))/(1-eccen*cos(ee))
+        if (abs(ee-e0) .le. 1.0e-14) thresh = .true.
+        ict = ict + 1
+        if (ict .gt. 100.0) thresh = .true.
+      enddo 
+      
+      return
+      end subroutine newtonraphson
+      
 !     =================
 !     SUBROUTINE SOLANG
 !     =================
 
       subroutine solang
       use radmod
+      
+      real ma, ea, anomarg, trueanom, phi, thyng, thing, zmins
 !
 !     compute cosine of zenit angle including daily cycle
 !
@@ -761,7 +829,7 @@
       endif
 
       call ntomin(nstep,imin,ihou,iday,imon,iyea)
-      
+            
       istp = mod(nstep,int(ntspd*slowdown+0.5))
       imin = (istp * mpstep*ntspd) / int(ntspd*slowdown+0.5)
       ihou = imin / 60
@@ -770,25 +838,47 @@
 !
 !**   2) compute declination [radians]
 !
-      call orb_decl(zcday, eccen, mvelpp, lambm0, obliqr, zdecl, eccf)
+!       call orb_decl(zcday, eccen, mvelpp, lambm0, obliqr, zdecl, eccf)
 !
 !**   3) compute zenith angle
 !
       gmu0(:) = 0.0
       zmuz    = 0.0
-      zdawn = sin(dawn * PI / 180.0) ! compute dawn/dusk angle 
-      zrlon = TWOPI / NLON           ! scale lambda to radians
-      zrtim = TWOPI / 1440.0         ! scale time   to radians
-      zmins = ihou * 60 + imin
+      zdawn = sin(dawn * PI / 180.0)  ! compute dawn/dusk angle 
+      zrlon = TWOPI / NLON            ! scale lambda to radians
+      zrtim = TWOPI / 1440.0 * rotspd ! scale time   to radians
+!       zmins = ihou * 60 + imin
+
+
+      call meananom(zmins,ma)
+
+      call newtonraphson(ma,eccen,ea)                    !Newton-Raphson iterator to get the 
+                                                         !eccentric anomaly
+                                                         
+      thyng = tan(ea*0.5)
+      anomarg = sqrt( (1+eccen)/(1-eccen) * thyng*thyng)
       
-      if (nfixed==1) zmins = 1440.0 * (1.0 - (fixedlon/360.))
+      if (thyng .lt. 0.) trueanom = 2*atan(0.0-anomarg)
+      if (thyng .ge. 0.) trueanom = 2*atan(anomarg)
+      
+      if (trueanom .lt. 0) trueanom = trueanom + TWOPI   !true anomaly
+      trueanom = mod(trueanom, TWOPI)                    !vector pointed at the sun
+      
+      call orb_decl2(trueanom,eccen,ea,obliqr,mvelpp,zdecl,eccf)
+! ---        
       
       jhor = 0
-      if (ncstsol==0) then
+      if (ncstsol==0) then        
        do jlat = 1 , NLPP
         do jlon = 0 , NLON-1
          jhor = jhor + 1
-         zhangle = zmins * zrtim + jlon * zrlon - PI
+!          zhangle = zmins * zrtim + jlon * zrlon - PI
+         
+         phi = zmins*zrtim + jlon*zrlon !Longitude relative to fixed stars
+         phi = mod(phi,TWOPI)
+         zhangle = trueanom - phi - fixedlon*PI/180.  !Angle between true anomaly + pi and the current fixed longitude
+         if (zhangle .gt. PI) zhangle = zhangle - TWOPI
+         if (zhangle .lt. 0.0-PI) zhangle = zhangle + TWOPI
          
          if (nfixed==1) zhangle = zhangle + PI
          
@@ -2346,6 +2436,35 @@
       return
       end subroutine orb_decl
 
+!     ====================
+!     SUBROUTINE ORB_DECL2
+!     ====================
+
+      subroutine orb_decl2(trueanom,eccen,eanom,obliqr,mvelpp,delta,eccf)
+      
+      implicit none
+      
+      !Input
+      real :: trueanom
+      real :: eccen
+      real :: eanom
+      real :: obliqr
+      real :: mvelpp
+      
+      !Internal
+      real :: lamb
+      
+      !Output
+      real :: eccf
+      real :: delta
+      
+      eccf = 1 - eccen*cos(eanom)
+      lamb = mvelpp - trueanom
+      delta  = asin(sin(obliqr)*sin(lamb))
+      
+      return
+      end subroutine orb_decl2
+      
 !     ====================
 !     SUBROUTINE ORB_PRINT
 !     ====================
