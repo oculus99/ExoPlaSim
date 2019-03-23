@@ -426,11 +426,17 @@
       dftue1(:,:)= 0.0         ! entropy
       dftue2(:,:)= 0.0         ! entropy
       
-      if (nwesteros==1) call yoshida(zwzz,zwvv,nrstept*mpstep*60.0,mpstep*60.0)
+      if (nwesteros==1) call yoshida(zwzz,zwvv,nrstept*mpstep*60.0/31558149.0,mpstep*60.0/31558149.0)
 !
 !**   2) compute cosine of solar zenit angle for each gridpoint
 !
       if(nsol==1) call solang
+      
+      if ((nwesteros==1) .and. (mypid==NROOT)) then
+        open(unit=53,file="sitnikov.pso",position="append",status="unknown")
+        write(53,'(1p8e13.5)') zwzz,zwvv,zwnu,gdist2,zwrr
+        close(53)
+      endif
 !
 !**   3) compute ozon distribution
 !
@@ -760,12 +766,12 @@
       
       subroutine yoshida(xx,vv,tt,dt)
       
-      real,parameter :: cube2 = 2.0**(1.0/3.0))
+      real,parameter :: cube2 = 2.0**(1.0/3.0)
       real,parameter :: w0 = -cube2/(2-cube2)
       real,parameter :: w1 = 1.0/(2-cube2)
       real,parameter :: c1 = w1*0.5
       real,parameter :: c2 = 0.5*(w0+w1)
-      real xx,vv,tt,dt,aa
+      real xx,vv,tt,dt,aa,zr
       
       xx = xx + c1*vv*dt
       call sitnikov(xx,tt+c1*dt,aa)
@@ -777,7 +783,7 @@
       call sitnikov(xx,tt+(c1+c2+c2)*dt,aa)
       vv = vv + w1*aa*dt
       xx = xx + c1*vv*dt
-      call starpos(tt+dt)
+      call starpos(tt+dt,zr)
       
       return
       end subroutine yoshida
@@ -801,16 +807,16 @@
 !     SUBROUTINE STARPOS
 !     ==================
       
-      subroutine starpos(tt)
+      subroutine starpos(tt,zx)
       use radmod
       
-      real zm,ee,tt
+      real zm,ee,tt,zx
       
       real thyng,anomarg
       
-!       sidyearyr = sidereal_year / 31558149.0 !Primary orbital period in years
+      sidyearyr = sidereal_year / 31558149.0 !Primary orbital period in years
       
-      zm = meananom0 + TWOPI/sidereal_year*tt
+      zm = meananom0 + TWOPI/sidyearyr*tt
       zm = mod(zm,TWOPI)
       call newtonraphson(zm,eccen,ee)
       thyng = tan(ee*0.5)
@@ -824,6 +830,7 @@
       zwnu = mod(zwnu,TWOPI)
       
       zwrr = semimajor * (1-eccen*eccen)/(1+eccen*cos(znu))
+      zx = zwrr
       
       return
       end subroutine starpos
@@ -842,6 +849,7 @@
         phi = 0.5*PI - atan(zwrr*cos(theta)/zwzz)
       else
         phi = PI * 0.5*(1-sign(1.0,cos(theta)))
+      endif
       if (theta .lt. 0) theta = theta + TWOPI
       if ((theta .ge. 0) .and. (theta .lt. 0.5*PI)) then
         declination = theta
@@ -849,6 +857,7 @@
         declination = PI-theta
       else
         declination = theta - TWOPI
+      endif
     
       return
       end subroutine primarycoords
@@ -986,7 +995,7 @@
 !
 !**  4) copy earth-sun distance (1/r**2) to radmod
 !
-      gdist2=eccf*(1-nwesteros) + nwesteros/(zwrr*zwrr)
+      gdist2=eccf*(1-nwesteros) + nwesteros/(zwrr*zwrr+zwzz*zwzz)
 
 
       return

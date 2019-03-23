@@ -580,7 +580,6 @@
       real :: meananom0 = 0.0          ! Initial mean anomaly
       real :: zwzz   = 0.0
       real :: zwvv   = 0.0
-      real :: zwma   = 0.0
       real :: ww     = 0.0             ! Omega used for scaling
       real :: oroscale = 1.0           ! Orography scaling
       real :: ra1    = 0.0             !
