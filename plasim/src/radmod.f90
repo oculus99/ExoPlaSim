@@ -22,6 +22,7 @@
 !
 
       real    :: gsol0   = 1367.0 ! solar constant (set in planet module)
+      real    :: gsol1   = 1367.0 ! solar constant for second star
       real    :: solclat = 1.0    ! cos of lat of insolation if ncstsol=1
       real    :: solcdec = 1.0    ! cos of dec of insolation if ncstsol=1
       real    :: clgray  = -1.0   ! cloud grayness (-1 = computed)
@@ -56,6 +57,15 @@
       real    :: fixedlon = 0.0   ! Longitude of fixed solar zenith
       real    :: slowdown = 1.0   ! Factor by which to change diurnal insolation cycle
 
+      integer :: ndoublestar = 0  ! Switch to model effect of two primary stars
+      integer :: nsecondary = 0   ! internal switch to keep track of which star is being computed
+      integer :: nrstept = 0 ! Radiative step number
+      
+!       real :: zwzz = 0.0
+      real :: zwrr = 0.0
+!       real :: zwvv = 0.0
+      real :: zwnu = 0.0
+      
       real :: rcl1(3)=(/0.15,0.30,0.60/) ! cloud albedos spectral range 1
       real :: rcl2(3)=(/0.15,0.30,0.60/) ! cloud albedos spectral range 2
       real :: acl2(3)=(/0.05,0.10,0.20/) ! cloud absorptivities spectral range 2
@@ -143,7 +153,7 @@
 !
       namelist/radmod_nl/ndcycle,ncstsol,solclat,solcdec,no3,co2        &
      &               ,iyrbp,nswr,nlwr,nfixed,fixedlon,slowdown          &
-     &               ,a0o3,a1o3,aco3,bo3,co3,toffo3,o3scale,newrsc      &
+     &               ,a0o3,a1o3,aco3,bo3,co3,toffo3,o3scale,newrsc,ndoublestar    &
      &               ,nsol,nclouds,nswrcl,nrscat,rcl1,rcl2,acl2,clgray,tpofmt   &
      &               ,acllwr,tswr1,tswr2,tswr3,th2oc,dawn
 !
@@ -285,6 +295,7 @@
       call mpbcr(o3scale)
       call mpbcr(co2)
       call mpbcr(gsol0)
+      call mpbcr(gsol1)
       call mpbcr(solclat)
       call mpbcr(solcdec)
       call mpbcr(clgray)
@@ -305,6 +316,7 @@
       call mpbci(nrscat)
       call mpbci(nswrcl)
       call mpbci(nclouds)
+      call mpbci(ndoublestar)
 
 !
 !     determine orbital parameters
@@ -413,6 +425,8 @@
       dlwfl(:,:) = 0.0         ! total long wave radiation
       dftue1(:,:)= 0.0         ! entropy
       dftue2(:,:)= 0.0         ! entropy
+      
+      if (nwesteros==1) call yoshida(zwzz,zwvv,nrstept*mpstep*60.0,mpstep*60.0)
 !
 !**   2) compute cosine of solar zenit angle for each gridpoint
 !
@@ -448,11 +462,21 @@
 !
 
       if(ntime == 1) call mksecond(zsec1,0.)
-      if(nswr==1) call swr
+      if(nswr==1) then
+        call swr
+        if ((nwesteros==1) .and. (ndoublestar == 1)) then
+          nsecondary = 1
+          call solang
+          call swr !The second time through, fluxes will be added to last time's results
+          nsecondary = 0
+        endif
+      endif
       if(ntime == 1) then
        call mksecond(zsec1,zsec1)
        time4swr=time4swr+zsec1
       endif
+      
+      if (nwesteros==1) nrstept = nrstept+1
 
 !
 !**   5) long wave radiation
@@ -712,6 +736,12 @@
 !
 !     no PUMA variables are used
 !
+
+      if (nwesteros==1) then
+        meananom0 = meananom0 + nrstept*mpstep*60.0*TWOPI/sidereal_year
+        meananom0 = mod(meananom0,TWOPI)
+      endif
+
       if(mypid == NROOT .and. ntime == 1) then
        write(nud,*)'******************************************'
        write(nud,*)' CPU usage in RADSTEP (ROOT process only):  '
@@ -723,6 +753,142 @@
 !
       return
       end subroutine radstop
+      
+!     ==================
+!     SUBROUTINE YOSHIDA
+!     ==================
+      
+      subroutine yoshida(xx,vv,tt,dt)
+      
+      real,parameter :: cube2 = 2.0**(1.0/3.0))
+      real,parameter :: w0 = -cube2/(2-cube2)
+      real,parameter :: w1 = 1.0/(2-cube2)
+      real,parameter :: c1 = w1*0.5
+      real,parameter :: c2 = 0.5*(w0+w1)
+      real xx,vv,tt,dt,aa
+      
+      xx = xx + c1*vv*dt
+      call sitnikov(xx,tt+c1*dt,aa)
+      vv = vv + w1*aa*dt
+      xx = xx + c2*vv*dt
+      call sitnikov(xx,tt+(c1+c2)*dt,aa)
+      vv = vv + w0*aa*dt
+      xx = xx + c2*vv*dt
+      call sitnikov(xx,tt+(c1+c2+c2)*dt,aa)
+      vv = vv + w1*aa*dt
+      xx = xx + c1*vv*dt
+      call starpos(tt+dt)
+      
+      return
+      end subroutine yoshida
+      
+!     ===================
+!     SUBROUTINE SITNIKOV
+!     ===================
+
+      subroutine sitnikov(xx,tt,aa)
+      
+      real xx,tt,aa,rr
+      
+      call starpos(tt,rr)
+      
+      aa = -xx/(sqrt(rr*rr+xx*xx))**3
+      
+      return
+      end subroutine sitnikov
+      
+!     ==================
+!     SUBROUTINE STARPOS
+!     ==================
+      
+      subroutine starpos(tt)
+      use radmod
+      
+      real zm,ee,tt
+      
+      real thyng,anomarg
+      
+!       sidyearyr = sidereal_year / 31558149.0 !Primary orbital period in years
+      
+      zm = meananom0 + TWOPI/sidereal_year*tt
+      zm = mod(zm,TWOPI)
+      call newtonraphson(zm,eccen,ee)
+      thyng = tan(ee*0.5)
+      anomarg = sqrt((1+eccen)/(1-eccen) * thyng*thyng)
+      
+      if (thyng .lt. 0.) zwnu = 2*atan(0.0-anomarg)
+      if (thyng .ge. 0.) zwnu = 2*atan(anomarg)
+      
+      if (znu .lt. 0) zwnu = zwnu + TWOPI
+      
+      zwnu = mod(zwnu,TWOPI)
+      
+      zwrr = semimajor * (1-eccen*eccen)/(1+eccen*cos(znu))
+      
+      return
+      end subroutine starpos
+      
+!     ========================      
+!     SUBROUTINE PRIMARYCOORDS
+!     ========================
+
+      subroutine primarycoords(phi,declination)
+      use radmod
+
+      real theta,declination,phi
+      
+      theta = zwnu-PI*(1-nsecondary)
+      if (zz .ne. 0.0) then
+        phi = 0.5*PI - atan(zwrr*cos(theta)/zwzz)
+      else
+        phi = PI * 0.5*(1-sign(1.0,cos(theta)))
+      if (theta .lt. 0) theta = theta + TWOPI
+      if ((theta .ge. 0) .and. (theta .lt. 0.5*PI)) then
+        declination = theta
+      else if ((theta .ge. 0.5*PI) .and. (theta .lt. 1.5*PI)) then
+        declination = PI-theta
+      else
+        declination = theta - TWOPI
+    
+      return
+      end subroutine primarycoords
+      
+!     ========================
+!     SUBROUTINE NEWTONRAPHSON
+!     ========================
+
+      subroutine newtonraphson(meananom,eccen,ee)
+      
+      real meananom
+      real eccen
+      real ee
+      real e0
+      integer ict
+      logical thresh
+      
+      if (eccen .lt. 0.5) then
+        ee = meananom
+      else
+        ee = 0.
+      endif
+      
+      thresh = .false.
+      
+      ict = 0
+      
+      do while (thresh .neqv. .true.)
+        e0 = ee
+        ee = ee - (ee-(meananom+eccen*sin(ee)))/(1-eccen*cos(ee))
+        if (abs(ee-e0) .le. 1.0e-14) thresh = .true.
+        ict = ict + 1
+        if (ict .gt. 100.0) thresh = .true.
+      enddo 
+      
+      return
+      end subroutine newtonraphson
+
+      
+      
 
 !     =================
 !     SUBROUTINE SOLANG
@@ -770,7 +936,7 @@
 !
 !**   2) compute declination [radians]
 !
-      call orb_decl(zcday, eccen, mvelpp, lambm0, obliqr, zdecl, eccf)
+      if (nwesteros .ne. 1) call orb_decl(zcday, eccen, mvelpp, lambm0, obliqr, zdecl, eccf)
 !
 !**   3) compute zenith angle
 !
@@ -778,10 +944,12 @@
       zmuz    = 0.0
       zdawn = sin(dawn * PI / 180.0) ! compute dawn/dusk angle 
       zrlon = TWOPI / NLON           ! scale lambda to radians
-      zrtim = TWOPI / 1440.0         ! scale time   to radians
+      zrtim = TWOPI / 1440.0 * rotspd ! scale time   to radians
       zmins = ihou * 60 + imin
       
       if (nfixed==1) zmins = 1440.0 * (1.0 - (fixedlon/360.))
+    
+      if (nwesteros==1) call primarycoords(zphi,zdecl)
       
       jhor = 0
       if (ncstsol==0) then
@@ -789,6 +957,7 @@
         do jlon = 0 , NLON-1
          jhor = jhor + 1
          zhangle = zmins * zrtim + jlon * zrlon - PI
+         if (nwesteros==1) zhangle = zhangle - zphi
          
          if (nfixed==1) zhangle = zhangle + PI
          
@@ -817,7 +986,8 @@
 !
 !**  4) copy earth-sun distance (1/r**2) to radmod
 !
-      gdist2=eccf
+      gdist2=eccf*(1-nwesteros) + nwesteros/(zwrr*zwrr)
+
 
       return
       end subroutine solang
@@ -941,8 +1111,10 @@
 !     0) define local parameters and arrays
 !
       parameter(zero=1.E-6)     ! if insolation < zero : fluxes=0.
-      parameter(zsolar1=0.517)  ! spectral partitioning 1 (wl < 0.75mue)
-      parameter(zsolar2=0.483)  ! spectral partitioning 2 (wl > 0.75mue)
+      parameter(zsolar11=0.517)  ! spectral partitioning 1 (wl < 0.75mue)
+      parameter(zsolar21=0.483)  ! spectral partitioning 2 (wl > 0.75mue)
+      parameter(zsolar12=0.517)  ! spectral partitioning 1 (wl < 0.75mue)
+      parameter(zsolar22=0.483)  ! spectral partitioning 2 (wl > 0.75mue)
       parameter(zbetta=1.66)    ! magnification factor water vapour
       parameter(zmbar=1.9)      ! magnification factor ozon
       parameter(zro3=2.14)      ! ozon density (kg/m**3 STP)
@@ -1005,6 +1177,9 @@
       real :: zlog(NHOR)
       real zb2(NHOR),zom0(NHOR),zuz(NHOR),zun(NHOR),zr(NHOR)
       real zexp(NHOR),zu(NHOR),zb1(NHOR)
+      
+      real zsolar1
+      real zsolar2
 !
       logical losun(NHOR)         ! flag for gridpoints with insolation
 !
@@ -1033,8 +1208,11 @@
 !
 !     top solar radiation downward
 !
-      zftop1(:) = zsolar1 * gsol0 * gdist2 * zmu1(:) !Adjust down here for redder spectrum. --AYP
-      zftop2(:) = zsolar2 * gsol0 * gdist2 * zmu1(:)
+      zftop1(:) = zsolar11 * gsol0 * gdist2 * zmu1(:) * (1-nsecondary) !Adjust down here for redder spectrum. --AYP
+      zftop2(:) = zsolar21 * gsol0 * gdist2 * zmu1(:) * (1-nsecondary)
+      
+      zftop1(:) = zftop1(:) + zsolar12 * gsol1 * gdist2 * zmu1(:) * nsecondary
+      zftop2(:) = zftop2(:) + zsolar22 * gsol1 * gdist2 * zmu1(:) * nsecondary
 
 !     from this point on, all computations are made only for
 !     points with solar insolation > zero
@@ -1171,6 +1349,9 @@
 !
 !     preset
 !
+      zsolar1 = zsolar11*(1-nsecondary) + zsolar12*nsecondary
+      zsolar2 = zsolar21*(1-nsecondary) + zsolar22*nsecondary
+
       where(losun(:))
        zta1(:)=1.
        zta1s(:)=1.
@@ -1373,8 +1554,8 @@
         z1mrabr(:)=1./(1.-zr2s(:,jlev)*zrl2s(:,jlev))
         zfd2(:)=zt2(:,jlev)*z1mrabr(:)
         zfu2(:)=-zt2(:,jlev)*zrl2(:,jlev)*z1mrabr(:)
-        dfu(:,jlev)=zfu1(:)*zftop1(:)+zfu2(:)*zftop2(:)
-        dfd(:,jlev)=zfd1(:)*zftop1(:)+zfd2(:)*zftop2(:)
+        dfu(:,jlev)=zfu1(:)*zftop1(:)+zfu2(:)*zftop2(:) + nsecondary*dfu(:,jlev)
+        dfd(:,jlev)=zfd1(:)*zftop1(:)+zfd2(:)*zftop2(:) + nsecondary*dfd(:,jlev)
         dswfl(:,jlev)=dfu(:,jlev)+dfd(:,jlev)
        endwhere
       enddo

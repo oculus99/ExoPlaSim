@@ -108,6 +108,32 @@
       return
       end subroutine get_restart_integer
 
+!     ============================
+!     SUBROUTINE GET_RESTART_FLOAT
+!     ============================
+
+      subroutine get_restart_float(yn,kv)
+      use restartmod
+
+      character (len=*) :: yn
+      real :: kv
+
+      do j = 1 , nresnum
+         if (trim(yn) == trim(yresnam(j))) then
+            call reseek(yn,j)
+            read (nreaunit) kv
+            nlastrec = nlastrec + 1
+            return
+         endif
+      enddo
+      if (nexcheck == 1) then
+         write(nud,*)'*** Error in get_restart_float ***'
+         write(nud,*)'Requested float {',yn,'} was not found'
+         stop
+      endif
+      return
+      end subroutine get_restart_float
+
 
 !     ============================
 !     SUBROUTINE GET_RESTART_ARRAY
@@ -179,6 +205,23 @@
       write (nwriunit) kv
       return
       end subroutine put_restart_integer
+
+!     ============================
+!     SUBROUTINE PUT_RESTART_FLOAT
+!     ============================
+
+      subroutine put_restart_float(yn,kv)
+      use restartmod
+
+      character (len=*)  :: yn
+      character (len=16) :: yy
+      real :: kv
+
+      yy = yn
+      write (nwriunit) yy
+      write (nwriunit) kv
+      return
+      end subroutine put_restart_float
 
 
 !     ============================

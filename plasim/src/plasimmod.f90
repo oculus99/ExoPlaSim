@@ -203,7 +203,8 @@
       integer :: nrdrag   = 0   ! 1: Apply Rayleigh fraction to 20-layer atmosphere
 !>>> AYP -- NEEDED AS PART OF GLACIERMOD      
       integer :: nglspec = 0
-!>>> AYP      
+!>>> AYP
+      integer :: nwesteros = 0 !Switch for computing Westerosi sitnikov climates
 
 !     ***********************
 !     * Global Real Scalars *
@@ -575,6 +576,11 @@
       real :: day_24hr      = 86400.0  ! Seconds in a standard day
       real :: sidereal_year = 0.0      ! Length of sidereal year [sec]
       real :: tropical_year = 0.0      ! Length of tropical year [sec]
+      real :: semimajor = 1.0          ! Semimajor Axis [AU]
+      real :: meananom0 = 0.0          ! Initial mean anomaly
+      real :: zwzz   = 0.0
+      real :: zwvv   = 0.0
+      real :: zwma   = 0.0
       real :: ww     = 0.0             ! Omega used for scaling
       real :: oroscale = 1.0           ! Orography scaling
       real :: ra1    = 0.0             !

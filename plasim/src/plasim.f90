@@ -267,6 +267,12 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
       call mpbci(nperpetual) ! day of perpetual integration
       call mpbci(ndheat)     ! switch for heating due to momentum dissipation
       call mpbci(nsponge)    ! switch for top sponge layer
+      call mpbci(nwesteros)
+      if (nwesteros>0) then
+        call mpbcr(meananom0)
+        call mpbcr(zwzz)
+        call mpbcr(zwvv)
+      endif
 
       call mpbcr(acpd    )   ! Specific heat for dry air
       call mpbcr(adv     )
@@ -666,6 +672,16 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 !     close efficiency diagnostic file
 !
       if(ndheat > 1 .and. mypid == NROOT) close(9)
+      
+!
+!*    finish radiation
+!
+
+      call radstop
+
+!
+      
+      
 !
 !     write restart file
 !
@@ -678,6 +694,11 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
          call put_restart_integer('nlev'    ,NLEV    )
          call put_restart_integer('nrsp'    ,NRSP    )
 
+         if (nwesteros==1) then
+           call put_restart_float('meananom0'     ,meananom0   )
+           call put_restart_float('zwzz'          ,zwzz        )
+           call put_restart_float('zwvv'          ,zwvv        )
+         endif
 !        Save current random number generator seed
 
          call random_seed(get=meed)
@@ -766,13 +787,6 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 
       call fluxstop
 
-!
-!*    finish radiation
-!
-
-      call radstop
-
-!
 !*    finish large scale and convective rain and clouds
 !
 
@@ -1017,7 +1031,7 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
                    , n_run_years , n_run_months  , n_run_days           &
                    , n_days_per_month, n_days_per_year                  &
                    , seed    , sellon     &
-                   , syncstr , synctime, nrdrag                         &
+                   , syncstr , synctime, nrdrag  , nwesteros            &
                    , dtep    , dtns    , dtrop   , dttrp                &
                    , tdissd  , tdissz  , tdisst  , tdissq  , tgr        &
                    , psurf   , ptop                                     &
@@ -1048,6 +1062,13 @@ plasimversion = "https://github.com/Edilbert/PLASIM/ : 15-Dec-2015"
 
       open(11,file=plasim_namelist,form='formatted')
       read (11,plasim_nl)
+      
+      if ((nwesteros==1) .and. (nrestart > 0)) then
+        call get_restart_float('meananom0',meananom0)
+        call get_restart_float('zwzz',zwzz)
+        call get_restart_float('zwvv',zwvv)
+      endif
+      
       
       if ((NLEV==20) .and. (nrdrag==1)) then
          tfrc(1)      =  20.0 * day_24hr !day_24hr
