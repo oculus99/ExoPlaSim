@@ -60,6 +60,7 @@
       integer :: ndoublestar = 0  ! Switch to model effect of two primary stars
       integer :: nsecondary = 0   ! internal switch to keep track of which star is being computed
       integer :: nrstept = 0 ! Radiative step number
+      real :: solmax = 1.0e5 ! Insolation ceiling (the alien megastructure option)
       
 !       real :: zwzz = 0.0
       real :: zwrr = 0.0
@@ -155,7 +156,7 @@
      &               ,iyrbp,nswr,nlwr,nfixed,fixedlon,slowdown          &
      &               ,a0o3,a1o3,aco3,bo3,co3,toffo3,o3scale,newrsc,ndoublestar    &
      &               ,nsol,nclouds,nswrcl,nrscat,rcl1,rcl2,acl2,clgray,tpofmt   &
-     &               ,acllwr,tswr1,tswr2,tswr3,th2oc,dawn
+     &               ,acllwr,tswr1,tswr2,tswr3,th2oc,dawn, solmax
 !
 !     namelist parameter:
 !
@@ -317,6 +318,7 @@
       call mpbci(nswrcl)
       call mpbci(nclouds)
       call mpbci(ndoublestar)
+      call mpbcr(solmax)
 
 !
 !     determine orbital parameters
@@ -326,9 +328,10 @@
       if (nfixorb == 1) then ! fixed orbital params (default AMIP II)
          iyrad = ORB_UNDEF_INT
       endif
-      call orb_params(iyrad, eccen, obliq, mvelp                          &
+      if (nwesteros==0) then
+        call orb_params(iyrad, eccen, obliq, mvelp                          &
      &               ,obliqr, lambm0, mvelpp, log_print, mypid, nroot,nud)
-
+      endif
 !
 !     read climatological ozone
 !
@@ -825,11 +828,11 @@
       if (thyng .lt. 0.) zwnu = 2*atan(0.0-anomarg)
       if (thyng .ge. 0.) zwnu = 2*atan(anomarg)
       
-      if (znu .lt. 0) zwnu = zwnu + TWOPI
+      if (zwnu .lt. 0) zwnu = zwnu + TWOPI
       
       zwnu = mod(zwnu,TWOPI)
       
-      zwrr = semimajor * (1-eccen*eccen)/(1+eccen*cos(znu))
+      zwrr = semimajor * (1-eccen*eccen)/(1+eccen*cos(zwnu))
       zx = zwrr
       
       return
@@ -843,20 +846,34 @@
       use radmod
 
       real theta,declination,phi
-      
-      theta = zwnu-PI*(1-nsecondary)
-      if (zz .ne. 0.0) then
-        phi = 0.5*PI - atan(zwrr*cos(theta)/zwzz)
+
+      theta = zwnu - PI*(1-nsecondary)
+
+      if (obliq > 45.0) then
+        
+        if (zz .ne. 0) then
+          phi = atan(zwrr*cos(theta)/zwzz)
+        else
+          phi = sign(0.5*PI,cos(theta))
+        endif
+        
+        if (theta .lt. 0) theta = theta + TWOPI
+        
+        declination = atan(zwrr*sin(theta) / sqrt(zwzz**2 + zwrr**2*cos(theta)**2))
+        phi = 0.5*PI - phi
+        
       else
-        phi = PI * 0.5*(1-sign(1.0,cos(theta)))
-      endif
-      if (theta .lt. 0) theta = theta + TWOPI
-      if ((theta .ge. 0) .and. (theta .lt. 0.5*PI)) then
-        declination = theta
-      else if ((theta .ge. 0.5*PI) .and. (theta .lt. 1.5*PI)) then
-        declination = PI-theta
-      else
-        declination = theta - TWOPI
+        
+        if (zwzz .ne. 0) then
+          declination = sign(PI*0.5 - abs(atan(zwrr/zwzz)),zwzz)
+        else
+          declination = 0.0
+        endif
+        
+        if (theta .lt. 0) theta = theta + TWOPI
+        
+        phi = theta
+    
       endif
     
       return
@@ -1217,11 +1234,11 @@
 !
 !     top solar radiation downward
 !
-      zftop1(:) = zsolar11 * gsol0 * gdist2 * zmu1(:) * (1-nsecondary) !Adjust down here for redder spectrum. --AYP
-      zftop2(:) = zsolar21 * gsol0 * gdist2 * zmu1(:) * (1-nsecondary)
+      zftop1(:) = zsolar11 * min(gsol0*gdist2,solmax) * zmu1(:) * (1-nsecondary) !Adjust down here for redder spectrum. --AYP
+      zftop2(:) = zsolar21 * min(gsol0*gdist2,solmax) * zmu1(:) * (1-nsecondary)
       
-      zftop1(:) = zftop1(:) + zsolar12 * gsol1 * gdist2 * zmu1(:) * nsecondary
-      zftop2(:) = zftop2(:) + zsolar22 * gsol1 * gdist2 * zmu1(:) * nsecondary
+      zftop1(:) = zftop1(:) + zsolar12 * min(gsol1*gdist2,solmax) * zmu1(:) * nsecondary
+      zftop2(:) = zftop2(:) + zsolar22 * min(gsol1*gdist2,solmax) * zmu1(:) * nsecondary
 
 !     from this point on, all computations are made only for
 !     points with solar insolation > zero
