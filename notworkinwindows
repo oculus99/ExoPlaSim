@@ -1,0 +1,9 @@
+When i run example pgm in windows, it producess error, that syntax of file not ok!
+
+Traceback (most recent call last):
+  File "exo1.py", line 3, in <module>
+    mymodel = exo.Model(workdir="mymodel_testrun",modelname="mymodel",resolution="T21",layers=10,ncpus=1)
+  File "C:\Users\himot\AppData\Local\Programs\Python\Python38\lib\site-packages\exoplasim-3.0.6-py3.8.egg\exoplasim\__init__.py", line 210, in __init__
+    os.chdir(sourcedir)
+OSError: [WinError 123] Tiedostonimen, hakemistonimen tai levynimen syntaksi ei kelpaa: ''
+
